@@ -1,0 +1,139 @@
+use core::{
+    alloc::Layout,
+    any::{Any, TypeId},
+};
+use std::collections::HashMap;
+
+use collections::Ptr;
+
+pub type ComponentID = usize;
+
+/// Stores all component data, organised by component type into component storages
+pub struct ComponentManager {
+    // TODO: This doesn't need to be hashed
+    ids: HashMap<TypeId, ComponentID, ahash::RandomState>,
+    metadata: Vec<ComponentMetaData>,
+}
+
+impl ComponentManager {
+    pub fn new() -> Self {
+        Self {
+            ids: HashMap::with_capacity_and_hasher(8, ahash::RandomState::new()),
+            metadata: Vec::with_capacity(8),
+        }
+    }
+
+    /// Registers a component type with the component manager
+    /// # Panics
+    /// - If the component type is already registered
+    pub fn register<C: Component>(&mut self) {
+        let type_id = C::type_id();
+        if self.ids.contains_key(&type_id) {
+            panic!("Component type already registered");
+        }
+
+        let comp_id = self.ids.len();
+        self.ids.insert(type_id, comp_id);
+        self.metadata.push(ComponentMetaData::new::<C>());
+    }
+
+    /// Returns the component id for the given component type
+    /// # Panics
+    /// - If the component type is not registered
+    pub fn get_id<C: Component>(&self) -> ComponentID {
+        *self.ids.get(&C::type_id()).expect(&format!(
+            "Component type {:?} not registered",
+            std::any::type_name::<C>()
+        ))
+    }
+
+    /// Returns the component layout for the given component type
+    pub fn get_metadata(&self, comp_id: ComponentID) -> &ComponentMetaData {
+        &self.metadata[comp_id]
+    }
+}
+
+pub struct ComponentMetaData {
+    pub type_id: TypeId,
+    pub layout: Layout,
+    pub drop: unsafe fn(Ptr),
+}
+
+impl ComponentMetaData {
+    pub fn new<T: Component>() -> Self {
+        Self {
+            type_id: T::type_id(),
+            layout: Layout::new::<T>(),
+            drop: |ptr: Ptr| unsafe { ptr.drop_as::<T>() },
+        }
+    }
+}
+
+pub trait Component: 'static {
+    /// Returns the type id of the component type
+    fn type_id() -> TypeId {
+        TypeId::of::<Self>()
+    }
+}
+impl<T: Any> Component for T {}
+
+#[cfg(test)]
+mod tests {
+    use crate::component::storage::ComponentStorage;
+
+    use super::*;
+
+    type CompA = u32;
+    type CompB = u64;
+
+    #[test]
+    fn component_registration() {
+        let mut manager = ComponentManager::new();
+        manager.register::<CompA>();
+        manager.register::<CompB>();
+
+        assert_eq!(manager.get_id::<CompA>(), 0);
+        assert_eq!(manager.get_id::<CompB>(), 1);
+    }
+
+    #[test]
+    fn push_component() {
+        let mut manager = ComponentManager::new();
+        manager.register::<CompA>();
+        manager.register::<CompB>();
+
+        let mut storage = ComponentStorage::new::<CompA>(0);
+        unsafe { storage.push(42) };
+
+        assert_eq!(unsafe { storage.get::<CompA>(0) }, &42);
+    }
+
+    #[test]
+    fn delete_component() {
+        let mut manager = ComponentManager::new();
+        manager.register::<CompA>();
+        manager.register::<CompB>();
+
+        let mut storage = ComponentStorage::new::<CompA>(0);
+        unsafe { storage.push(42) };
+        unsafe { storage.delete(0) };
+
+        assert_eq!(storage.components.len(), 0);
+    }
+
+    #[test]
+    fn move_component() {
+        let mut manager = ComponentManager::new();
+        manager.register::<CompA>();
+        manager.register::<CompB>();
+
+        let mut storage = ComponentStorage::new::<CompA>(0);
+        unsafe { storage.push(42) };
+
+        let mut other = ComponentStorage::new::<CompA>(1);
+        unsafe { storage.move_unchecked(0, &mut other) };
+
+        assert_eq!(storage.components.len(), 0);
+        assert_eq!(unsafe { other.get::<CompA>(0) }, &42);
+    }
+}

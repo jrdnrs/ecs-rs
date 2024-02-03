@@ -1,0 +1,1 @@
+Entity component system ([ECS](https://en.wikipedia.org/wiki/Entity_component_system)) for Rust
