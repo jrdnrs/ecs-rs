@@ -24,12 +24,10 @@ impl ComponentManager {
     }
 
     /// Registers a component type with the component manager
-    /// # Panics
-    /// - If the component type is already registered
     pub fn register<C: Component>(&mut self) {
         let type_id = C::type_id();
         if self.ids.contains_key(&type_id) {
-            panic!("Component type already registered");
+            return;
         }
 
         let comp_id = self.ids.len();
