@@ -45,14 +45,14 @@ impl<R: Resource> ResourceId<R> {
 /// resources at once.
 pub struct ResourceManager {
     resources: Vec<Box<UnsafeCell<dyn Resource>>>,
-    ids: HashMap<TypeId, usize>,
+    ids: HashMap<TypeId, usize, ahash::RandomState>,
 }
 
 impl ResourceManager {
     pub fn new() -> Self {
         Self {
-            resources: Vec::new(),
-            ids: HashMap::new(),
+            resources: Vec::with_capacity(32),
+            ids: HashMap::with_capacity_and_hasher(32, ahash::RandomState::new()),
         }
     }
 
