@@ -9,7 +9,7 @@ use crate::{
 };
 
 use super::{
-    bundle::{ComponentBundle, ResourceBundle},
+    bundle::{ComponentBundle, FilterBundle, ResourceBundle},
     filter::{Filter, FilterBuilder},
     iter::ComponentBundleIter,
 };
@@ -38,7 +38,7 @@ impl<'w, C: ComponentBundle> QueryBuilder<'w, (C,)> {
         }
     }
 
-    pub fn filter<CFilter: ComponentBundle>(mut self) -> QueryBuilder<'w, (C,)> {
+    pub fn filter<CFilter: FilterBundle>(mut self) -> QueryBuilder<'w, (C,)> {
         let parameter_ids = CFilter::parameter_ids(&self.component_manager);
         self.filter_builder = CFilter::build_filter(self.filter_builder, &parameter_ids);
 
@@ -81,7 +81,7 @@ impl<'w, C: ComponentBundle, R: ResourceBundle> QueryBuilder<'w, (C, R)> {
         }
     }
 
-    pub fn filter<CFilter: ComponentBundle>(mut self) -> QueryBuilder<'w, (C, R)> {
+    pub fn filter<CFilter: FilterBundle>(mut self) -> QueryBuilder<'w, (C, R)> {
         let parameter_ids = CFilter::parameter_ids(&self.component_manager);
         self.filter_builder = CFilter::build_filter(self.filter_builder, &parameter_ids);
 

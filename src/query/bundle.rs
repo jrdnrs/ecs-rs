@@ -232,50 +232,6 @@ impl<T: Component> ComponentBundle for Tracked<&'static mut T> {
     }
 }
 
-impl<T: Component> ComponentBundle for Not<T> {
-    type Item<'a> = T;
-    type Storage<'a> = &'a ComponentStorage;
-    type Id = ComponentID;
-
-    fn parameter_ids(component_manager: &ComponentManager) -> Self::Id {
-        component_manager.get_id::<T>()
-    }
-
-    fn build_filter(filter: FilterBuilder, id: &Self::Id) -> FilterBuilder {
-        filter.not(*id)
-    }
-
-    fn prepare_storage<'a>(archetype: &'a Archetype, id: &Self::Id) -> Self::Storage<'a> {
-        unimplemented!()
-    }
-
-    unsafe fn fetch_item<'a>(storage: Self::Storage<'a>, index: usize) -> Self::Item<'a> {
-        unimplemented!()
-    }
-}
-
-impl<T: Component> ComponentBundle for And<T> {
-    type Item<'a> = T;
-    type Storage<'a> = &'a ComponentStorage;
-    type Id = ComponentID;
-
-    fn parameter_ids(component_manager: &ComponentManager) -> Self::Id {
-        component_manager.get_id::<T>()
-    }
-
-    fn build_filter(filter: FilterBuilder, id: &Self::Id) -> FilterBuilder {
-        filter.and(*id)
-    }
-
-    fn prepare_storage<'a>(archetype: &'a Archetype, id: &Self::Id) -> Self::Storage<'a> {
-        unimplemented!()
-    }
-
-    unsafe fn fetch_item<'a>(storage: Self::Storage<'a>, index: usize) -> Self::Item<'a> {
-        unimplemented!()
-    }
-}
-
 impl ComponentBundle for Entity {
     type Item<'a> = Entity;
     type Storage<'a> = &'a Vec<Entity>;
@@ -381,6 +337,41 @@ impl<P1: ComponentBundle, P2: ComponentBundle, P3: ComponentBundle> ComponentBun
             P2::fetch_item(storage.1, index),
             P3::fetch_item(storage.2, index),
         )
+    }
+}
+
+pub trait FilterBundle: 'static {
+    /// Identifier for the component type
+    type Id: Copy;
+
+    /// Returns the component type identifier for the parameter
+    fn parameter_ids(component_manager: &ComponentManager) -> Self::Id;
+
+    /// Contributes the component type to the filter, for matching with archetypes
+    fn build_filter(filter: FilterBuilder, id: &Self::Id) -> FilterBuilder;
+}
+
+impl<T: Component> FilterBundle for Not<T> {
+    type Id = ComponentID;
+
+    fn parameter_ids(component_manager: &ComponentManager) -> Self::Id {
+        component_manager.get_id::<T>()
+    }
+
+    fn build_filter(filter: FilterBuilder, id: &Self::Id) -> FilterBuilder {
+        filter.not(*id)
+    }
+}
+
+impl<T: Component> FilterBundle for And<T> {
+    type Id = ComponentID;
+
+    fn parameter_ids(component_manager: &ComponentManager) -> Self::Id {
+        component_manager.get_id::<T>()
+    }
+
+    fn build_filter(filter: FilterBuilder, id: &Self::Id) -> FilterBuilder {
+        filter.and(*id)
     }
 }
 
