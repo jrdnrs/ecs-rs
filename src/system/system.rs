@@ -184,12 +184,12 @@ mod tests {
         // BUG: Adding components to an entity, before creating the system that queries for them,
         //      means that the relevant archetypes will be tracked - great.
         //
-        //      However, each newly created, archetype will be added to a queue that is processed when the
+        //      However, each newly created archetype will be added to a queue that is processed when the
         //      system manager flushes, as newly created archetypes may be added to existing queries if they match.
         //
         //      This means that the archetype will be added twice, as we are not using an actual set, but a vector.
 
-        // BUG: A system that uses the `flag_modified` command, can fail the component storage is not tracked.
+        // BUG: A system that uses the `flag_modified` command, can fail if the component storage is not tracked.
         //      This can occur if another system, with identical queries but including a tracked version of
         //      the component, is not present which means tracking would not be added automatically.
         //

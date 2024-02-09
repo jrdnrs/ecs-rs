@@ -10,9 +10,21 @@ use crate::{
 pub type ArchetypeID = BitSet;
 
 pub struct Archetype {
+    /// The ID of an archetype is a bitset that represents the component IDs that are present within,
+    /// where the index of each set bit corresponds to the component ID.
     pub id: ArchetypeID,
+
+    /// Values in this map are IDs for other Archetypes that match the current archetype, but with
+    /// the addition or removal of a single component. The key is the component ID that is added or
+    /// removed to get to the other archetype.
     pub edges: SparseMap<ArchetypeID>,
+
+    /// Values in this map are the component storage for each component that is present within the
+    /// archetype. The key is the component ID.
     pub components: SparseMap<ComponentStorage>,
+
+    /// The entities that are present within the archetype. The index of each entity in this vec
+    /// corresponds to the row of the entity within the component storages.
     pub entities: Vec<Entity>,
 }
 
@@ -60,7 +72,7 @@ impl Archetype {
     /// - The entity must be alive, and does not already exist in this archetype.
     pub unsafe fn push_entity(&mut self, entity: Entity, entity_manager: &mut EntityManager) {
         // SAFETY: As long as the above invariants are upheld, this is all safe
-        let entity_record = unsafe { entity_manager.get_mut_record_unchecked(entity) };
+        let entity_record = unsafe { entity_manager.get_record_mut_unchecked(entity) };
 
         entity_record.archetype_row = self.entities.len();
         entity_record.archetype_id = self.id.clone();
@@ -76,7 +88,7 @@ impl Archetype {
         // SAFETY: This entity (at end of vec) already exists in this archetype, so the row is assumed to be valid
         unsafe {
             entity_manager
-                .get_mut_record_unchecked(self.entities[self.entities.len() - 1])
+                .get_record_mut_unchecked(self.entities[self.entities.len() - 1])
                 .archetype_row = entity_row;
         }
 
@@ -99,7 +111,7 @@ impl Archetype {
     pub unsafe fn delete_component(&mut self, comp_id: ComponentID, row: usize) {
         // SAFETY: Deferred to the caller
         let storage = unsafe { self.get_mut_storage(comp_id) };
-        unsafe { storage.delete(row) }
+        unsafe { storage.delete_unchecked(row) }
     }
 
     /// # Safety
@@ -108,7 +120,7 @@ impl Archetype {
     pub unsafe fn get_component<T: Component>(&self, comp_id: ComponentID, row: usize) -> &T {
         // SAFETY: Deferred to the caller
         let storage = unsafe { self.get_storage(comp_id) };
-        unsafe { storage.get(row) }
+        unsafe { storage.get_unchecked(row) }
     }
 
     /// # Safety
@@ -121,7 +133,7 @@ impl Archetype {
     ) -> &mut T {
         // SAFETY: Deferred to the caller
         let storage = unsafe { self.get_mut_storage(comp_id) };
-        unsafe { storage.get_mut(row) }
+        unsafe { storage.get_mut_unchecked(row) }
     }
 
     /// # Safety
@@ -165,9 +177,17 @@ impl Archetype {
 }
 
 pub struct ArchetypeManager {
-    pub archetype_table: HashMap<ArchetypeID, Archetype, ahash::RandomState>,
+    /// The root archetype is the archetype that all other archetypes are derived from, as it contains
+    /// no components! All entities start their life in the root archetype, and are moved to other archetypes
+    /// as they gain components.
     root_archetype: ArchetypeID,
 
+    /// A table of all archetypes that exist within the world.
+    pub archetype_table: HashMap<ArchetypeID, Archetype, ahash::RandomState>,
+
+    /// When a query is first created, archetypes relevant to that query are cached. If a new archetype
+    /// is created it is added to this queue so that, after all systems have run for a given world update,
+    /// they can be checked for relevance to every query and added to their cache, before being cleared.
     pub new_archetypes_queue: Vec<ArchetypeID>,
 }
 
@@ -180,8 +200,8 @@ impl ArchetypeManager {
         archetype_table.insert(root_id.clone(), root);
 
         Self {
-            archetype_table,
             root_archetype: root_id,
+            archetype_table,
             new_archetypes_queue: Vec::new(),
         }
     }
@@ -216,19 +236,25 @@ impl ArchetypeManager {
         }
     }
 
-    /// # Safety
-    /// - The archetype ID must exist within this manager, as no existence check is performed.
-    pub unsafe fn get(&self, arche_id: &ArchetypeID) -> &Archetype {
-        debug_assert!(self.archetype_table.contains_key(arche_id));
-
-        unsafe { self.archetype_table.get(arche_id).unwrap_unchecked() }
+    pub fn get(&self, arche_id: &ArchetypeID) -> Option<&Archetype> {
+        self.archetype_table.get(arche_id)
     }
 
     /// # Safety
     /// - The archetype ID must exist within this manager, as no existence check is performed.
-    pub unsafe fn get_mut(&mut self, arche_id: &ArchetypeID) -> &mut Archetype {
+    pub unsafe fn get_unchecked(&self, arche_id: &ArchetypeID) -> &Archetype {
         debug_assert!(self.archetype_table.contains_key(arche_id));
+        unsafe { self.archetype_table.get(arche_id).unwrap_unchecked() }
+    }
 
+    pub fn get_mut(&mut self, arche_id: &ArchetypeID) -> Option<&mut Archetype> {
+        self.archetype_table.get_mut(arche_id)
+    }
+
+    /// # Safety
+    /// - The archetype ID must exist within this manager, as no existence check is performed.
+    pub unsafe fn get_mut_unchecked(&mut self, arche_id: &ArchetypeID) -> &mut Archetype {
+        debug_assert!(self.archetype_table.contains_key(arche_id));
         unsafe { self.archetype_table.get_mut(arche_id).unwrap_unchecked() }
     }
 
@@ -236,28 +262,30 @@ impl ArchetypeManager {
         // SAFETY: Already carried out entity validation prior to calling this function.
         let entity_record = unsafe { entity_manager.get_record_unchecked(entity) };
 
-        let arche = unsafe { self.get_mut(&entity_record.archetype_id) };
+        let arche = unsafe { self.get_mut_unchecked(&entity_record.archetype_id) };
 
         for storage in arche.components.values_mut() {
-            unsafe { storage.delete(entity_record.archetype_row) };
+            unsafe { storage.delete_unchecked(entity_record.archetype_row) };
         }
 
         unsafe { arche.delete_entity(entity, entity_manager) };
     }
 
-    pub fn insert_graph_edge(
+    /// # Safety
+    /// - src_arche_id and dst_arche_id must be valid archetypes within this manager.
+    pub unsafe fn insert_graph_edge(
         &mut self,
         src_arche_id: &ArchetypeID,
         dst_arche_id: &ArchetypeID,
         edge_comp_id: &ComponentID,
     ) {
         unsafe {
-            self.get_mut(src_arche_id)
+            self.get_mut_unchecked(src_arche_id)
                 .edges
                 .insert(edge_comp_id.clone(), dst_arche_id.clone())
         };
         unsafe {
-            self.get_mut(dst_arche_id)
+            self.get_mut_unchecked(dst_arche_id)
                 .edges
                 .insert(edge_comp_id.clone(), src_arche_id.clone())
         };
@@ -282,8 +310,8 @@ impl ArchetypeManager {
             &self.get_extended_archetype(src_arche_id.clone(), comp_id, comp_manager);
 
         // SAFETY: Archetypes are guaranteed to be unique, so we can safely get mutable references
-        let src_arche = unsafe { &mut *(self.get_mut(src_arche_id) as *mut Archetype) };
-        let dst_arche = unsafe { &mut *(self.get_mut(dst_arche_id) as *mut Archetype) };
+        let src_arche = unsafe { &mut *(self.get_mut_unchecked(src_arche_id) as *mut Archetype) };
+        let dst_arche = unsafe { &mut *(self.get_mut_unchecked(dst_arche_id) as *mut Archetype) };
 
         // SAFETY: The destination archetype is guaranteed to have the component ID as it has
         //         been extended to include the component ID.
@@ -312,8 +340,8 @@ impl ArchetypeManager {
         let dst_arche_id = &self.get_reduced_archetype(src_arche_id.clone(), comp_id, comp_manager);
 
         // SAFETY: Archetypes are guaranteed to be unique, so we can safely get mutable references
-        let src_arche = unsafe { &mut *(self.get_mut(src_arche_id) as *mut Archetype) };
-        let dst_arche = unsafe { &mut *(self.get_mut(dst_arche_id) as *mut Archetype) };
+        let src_arche = unsafe { &mut *(self.get_mut_unchecked(src_arche_id) as *mut Archetype) };
+        let dst_arche = unsafe { &mut *(self.get_mut_unchecked(dst_arche_id) as *mut Archetype) };
 
         // SAFETY: The source archetype is guaranteed to have the component ID as it was checked, prior
         //         to calling this function, that the source archetype contains the component ID.
@@ -332,7 +360,9 @@ impl ArchetypeManager {
         comp_manager: &ComponentManager,
     ) -> ArchetypeID {
         // archetype already has the edge to the archetype with the component
-        if let Some(dst_arche_id) = unsafe { self.get(&src_arche_id).edges.get(new_comp_id) } {
+        if let Some(dst_arche_id) =
+            unsafe { self.get_unchecked(&src_arche_id).edges.get(new_comp_id) }
+        {
             return dst_arche_id.clone();
         }
 
@@ -345,7 +375,7 @@ impl ArchetypeManager {
         // archetype with the component already exists in the graph, but there was no edge
         // from the src archetype, so add it
         if self.archetype_table.contains_key(&target_arche_id) {
-            self.insert_graph_edge(&src_arche_id, &target_arche_id, &new_comp_id);
+            unsafe { self.insert_graph_edge(&src_arche_id, &target_arche_id, &new_comp_id) };
             return target_arche_id;
         }
 
@@ -359,7 +389,7 @@ impl ArchetypeManager {
         );
 
         // add the other components storages, inherited from the src archetype
-        for comp_storage in unsafe { self.get(&src_arche_id).components.values() } {
+        for comp_storage in unsafe { self.get_unchecked(&src_arche_id).components.values() } {
             dst_arche
                 .components
                 .insert(comp_storage.id, ComponentStorage::from_other(comp_storage));
@@ -367,7 +397,7 @@ impl ArchetypeManager {
 
         self.new_archetypes_queue.push(dst_arche.id.clone());
         self.archetype_table.insert(dst_arche.id.clone(), dst_arche);
-        self.insert_graph_edge(&src_arche_id, &target_arche_id, &new_comp_id);
+        unsafe { self.insert_graph_edge(&src_arche_id, &target_arche_id, &new_comp_id) };
 
         return target_arche_id;
     }
@@ -379,7 +409,9 @@ impl ArchetypeManager {
         comp_manager: &ComponentManager,
     ) -> ArchetypeID {
         // archetype already has the edge to the archetype with the component
-        if let Some(dst_arche_id) = unsafe { self.get(&src_arche_id).edges.get(old_comp_id) } {
+        if let Some(dst_arche_id) =
+            unsafe { self.get_unchecked(&src_arche_id).edges.get(old_comp_id) }
+        {
             return dst_arche_id.clone();
         }
 
@@ -392,7 +424,7 @@ impl ArchetypeManager {
         // archetype without the component already exists in the graph, but there was no edge
         // from the src archetype, so add it
         if self.archetype_table.contains_key(&target_arche_id) {
-            self.insert_graph_edge(&src_arche_id, &target_arche_id, &old_comp_id);
+            unsafe { self.insert_graph_edge(&src_arche_id, &target_arche_id, &old_comp_id) };
             return target_arche_id;
         }
 
@@ -400,7 +432,7 @@ impl ArchetypeManager {
         let mut dst_arche = Archetype::new(target_arche_id.clone());
 
         // add the components storages, inherited from the src archetype
-        for comp_storage in unsafe { self.get(&src_arche_id).components.values() } {
+        for comp_storage in unsafe { self.get_unchecked(&src_arche_id).components.values() } {
             if comp_storage.id == old_comp_id {
                 continue;
             }
@@ -412,7 +444,7 @@ impl ArchetypeManager {
 
         self.new_archetypes_queue.push(dst_arche.id.clone());
         self.archetype_table.insert(dst_arche.id.clone(), dst_arche);
-        self.insert_graph_edge(&src_arche_id, &target_arche_id, &old_comp_id);
+        unsafe { self.insert_graph_edge(&src_arche_id, &target_arche_id, &old_comp_id) };
 
         return target_arche_id;
     }
@@ -438,8 +470,8 @@ mod tests {
         manager.archetype_table.insert(arche_1_id.clone(), arche1);
         manager.archetype_table.insert(arche_2_id.clone(), arche2);
 
-        let src_arche = unsafe { &mut *(manager.get_mut(&arche_1_id) as *mut Archetype) };
-        let dst_arche = unsafe { &mut *(manager.get_mut(&arche_2_id) as *mut Archetype) };
+        let src_arche = unsafe { &mut *(manager.get_mut_unchecked(&arche_1_id) as *mut Archetype) };
+        let dst_arche = unsafe { &mut *(manager.get_mut_unchecked(&arche_2_id) as *mut Archetype) };
 
         dst_arche.entities.push(src_arche.entities.swap_remove(0));
         src_arche.entities.push(dst_arche.entities.swap_remove(0));

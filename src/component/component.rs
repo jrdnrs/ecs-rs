@@ -6,12 +6,16 @@ use std::collections::HashMap;
 
 use collections::Ptr;
 
+/// Unique sequential integer
 pub type ComponentID = usize;
 
 /// Stores all component data, organised by component type into component storages
 pub struct ComponentManager {
-    // TODO: This doesn't need to be hashed
+    /// Used to translate component type ids to component ids
     ids: HashMap<TypeId, ComponentID, ahash::RandomState>,
+
+    /// Stores the metadata for each component type, accessible using the component id
+    /// as the index
     metadata: Vec<ComponentMetaData>,
 }
 
@@ -103,7 +107,7 @@ mod tests {
         let mut storage = ComponentStorage::new::<CompA>(0);
         unsafe { storage.push(42) };
 
-        assert_eq!(unsafe { storage.get::<CompA>(0) }, &42);
+        assert_eq!(unsafe { storage.get_unchecked::<CompA>(0) }, &42);
     }
 
     #[test]
@@ -114,7 +118,7 @@ mod tests {
 
         let mut storage = ComponentStorage::new::<CompA>(0);
         unsafe { storage.push(42) };
-        unsafe { storage.delete(0) };
+        unsafe { storage.delete_unchecked(0) };
 
         assert_eq!(storage.components.len(), 0);
     }
@@ -132,6 +136,6 @@ mod tests {
         unsafe { storage.move_unchecked(0, &mut other) };
 
         assert_eq!(storage.components.len(), 0);
-        assert_eq!(unsafe { other.get::<CompA>(0) }, &42);
+        assert_eq!(unsafe { other.get_unchecked::<CompA>(0) }, &42);
     }
 }

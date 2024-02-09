@@ -67,17 +67,18 @@ impl ResourceManager {
     }
 
     pub fn get_id<R: Resource>(&self) -> ResourceId<R> {
-        ResourceId::new(*self.ids.get(&TypeId::of::<R>()).unwrap())
+        ResourceId::new(*self.ids.get(&TypeId::of::<R>()).expect(&format!(
+            "Resource type {:?} not registered",
+            std::any::type_name::<R>()
+        )))
     }
 
     pub fn get_storage(&self) -> &[Box<UnsafeCell<dyn Resource>>] {
         &self.resources
     }
 
-    /// # Safety
-    /// - The generic type parameter must match the underlying type of this resource.
-    pub unsafe fn get<R: Resource>(&self, id: ResourceId<R>) -> Option<&R> {
-        // SAFETY: The caller must ensure the type is correct.
+    pub fn get<R: Resource>(&self, id: ResourceId<R>) -> Option<&R> {
+        // SAFETY: ResourceId is created when inserting the resource, so type is guaranteed to be correct.
         unsafe {
             self.resources
                 .get(id.index)
@@ -86,9 +87,9 @@ impl ResourceManager {
     }
 
     /// # Safety
-    /// - The generic type parameter must match the underlying type of this resource.
+    /// - Mutable reference is obtained via UnsafeCell, so the resource must not be borrowed mutably elsewhere.
     pub unsafe fn get_mut<R: Resource>(&self, id: ResourceId<R>) -> Option<&mut R> {
-        // SAFETY: The caller must ensure the type is correct.
+        // SAFETY: ResourceId is created when inserting the resource, so type is guaranteed to be correct.
         unsafe {
             self.resources
                 .get(id.index)
@@ -97,10 +98,9 @@ impl ResourceManager {
     }
 
     /// # Safety
-    /// - The generic type parameter must match the underlying type of this resource.
     /// - The key must be valid, and within bounds of the underlying vec.
     pub unsafe fn get_unchecked<R: Resource>(&self, id: ResourceId<R>) -> &R {
-        // SAFETY: Type and bounds checks are deferred to the caller.
+        // SAFETY: ResourceId is created when inserting the resource, so type is guaranteed to be correct.
         unsafe {
             self.resources
                 .get_unchecked(id.index)
@@ -112,10 +112,10 @@ impl ResourceManager {
     }
 
     /// # Safety
-    /// - The generic type parameter must match the underlying type of this resource.
     /// - The key must be valid, and within bounds of the underlying vec.
+    /// - Mutable reference is obtained via UnsafeCell, so the resource must not be borrowed mutably elsewhere.
     pub unsafe fn get_mut_unchecked<R: Resource>(&self, id: ResourceId<R>) -> &mut R {
-        // SAFETY: Type and bounds checks are deferred to the caller.
+        // SAFETY: ResourceId is created when inserting the resource, so type is guaranteed to be correct.
         unsafe {
             self.resources
                 .get_unchecked(id.index)

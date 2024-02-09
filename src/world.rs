@@ -120,7 +120,10 @@ impl World {
         // SAFETY:
         // - If entity is alive, then archetype is guaranteed to be valid as it wrote its ID to the
         //   entity record in the first place.
-        let arche = unsafe { self.archetype_manager.get(&entity_record.archetype_id) };
+        let arche = unsafe {
+            self.archetype_manager
+                .get_unchecked(&entity_record.archetype_id)
+        };
         if !arche.has_component(comp_id) {
             return None;
         }
@@ -143,7 +146,10 @@ impl World {
         // SAFETY:
         // - If entity is alive, then archetype is guaranteed to be valid as it wrote its ID to the
         //   entity record in the first place.
-        let arche = unsafe { self.archetype_manager.get_mut(&entity_record.archetype_id) };
+        let arche = unsafe {
+            self.archetype_manager
+                .get_mut_unchecked(&entity_record.archetype_id)
+        };
         if !arche.has_component(comp_id) {
             return None;
         }
@@ -164,11 +170,8 @@ impl World {
     /// Although each Resource is guaranteed to be unique, the generic type parameter is only
     /// used to downcast the resource to the correct type. Instead the resource ID is used to
     /// locate the Resource for faster lookup.
-    ///
-    /// # Safety
-    /// - The generic type parameter must match the underlying type of this resource.
-    pub unsafe fn get_resource<R: Resource>(&self, id: ResourceId<R>) -> Option<&R> {
-        unsafe { self.resource_manager.get::<R>(id) }
+    pub fn get_resource<R: Resource>(&self, id: ResourceId<R>) -> Option<&R> {
+        self.resource_manager.get::<R>(id)
     }
 
     /// Although each Resource is guaranteed to be unique, the generic type parameter is only
@@ -180,8 +183,7 @@ impl World {
     /// via internal use of UnsafeCell.
     ///
     /// # Safety
-    /// - The generic type parameter must match the underlying type of this resource.
-    /// - This resource must not be borrowed mutably anywhere else.
+    /// - Mutable reference is obtained via UnsafeCell, so the resource must not be borrowed mutably elsewhere.
     pub unsafe fn get_mut_resource<R: Resource>(&self, id: ResourceId<R>) -> Option<&mut R> {
         unsafe { self.resource_manager.get_mut::<R>(id) }
     }
@@ -191,7 +193,6 @@ impl World {
     /// locate the Resource for faster lookup.
     ///
     /// # Safety
-    /// - The generic type parameter must match the underlying type of this resource.
     /// - The ID must be valid, as no bounds check will be performed.
     pub unsafe fn get_resource_unchecked<R: Resource>(&self, id: ResourceId<R>) -> &R {
         unsafe { self.resource_manager.get_unchecked::<R>(id) }
@@ -206,7 +207,6 @@ impl World {
     /// via internal use of UnsafeCell.
     ///
     /// # Safety
-    /// - The generic type parameter must match the underlying type of this resource.
     /// - The ID must be valid, as no bounds check will be performed.
     /// - This resource must not be borrowed mutably anywhere else.
     pub unsafe fn get_mut_resource_unchecked<R: Resource>(&self, id: ResourceId<R>) -> &mut R {
@@ -230,7 +230,7 @@ impl World {
         let mut system_manager = core::mem::replace(&mut self.system_manager, SystemManager::new());
         system_manager.update(self);
         self.system_manager = system_manager;
-        self.event_manager.clear_events(&self.resource_manager);
+        // self.event_manager.clear_events(&self.resource_manager);
         self.tick += 1;
     }
 }

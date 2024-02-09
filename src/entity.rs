@@ -39,7 +39,7 @@ impl EntityManager {
     }
 
     /// Returns the entity record for the given entity if it is still alive
-    pub fn get_mut_record(&mut self, entity: Entity) -> Option<&mut EntityRecord> {
+    pub fn get_record_mut(&mut self, entity: Entity) -> Option<&mut EntityRecord> {
         self.records.get_mut(StoreKey::from_key(entity))
     }
 
@@ -50,7 +50,7 @@ impl EntityManager {
     /// - No underlying bounds check is performed for the index associated with the given entity
     /// - No check is performed to ensure the generation of the entity matches the generation of the
     /// record at the given index
-    pub unsafe fn get_mut_record_unchecked(&mut self, entity: Entity) -> &mut EntityRecord {
+    pub unsafe fn get_record_mut_unchecked(&mut self, entity: Entity) -> &mut EntityRecord {
         // SAFETY: Deferred to the caller
         unsafe { self.records.get_mut_unchecked(StoreKey::from_key(entity)) }
     }

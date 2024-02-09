@@ -173,7 +173,7 @@ impl<'w, C: ComponentBundle, R: ResourceBundle> Query<C, R> {
             for comp_id in self.filter.track.iter() {
                 unsafe {
                     archetype_manager
-                        .get_mut(arche_id)
+                        .get_mut_unchecked(arche_id)
                         .get_mut_storage(*comp_id)
                         .tracker
                         .as_mut()
