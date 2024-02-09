@@ -5,6 +5,7 @@ use collections::{BitSet, SparseMap};
 use crate::{
     component::{storage::ComponentStorage, Component, ComponentID, ComponentManager},
     entity::{Entity, EntityManager},
+    util::get_two_mut_unchecked,
 };
 
 pub type ArchetypeID = BitSet;
@@ -309,9 +310,9 @@ impl ArchetypeManager {
         let dst_arche_id =
             &self.get_extended_archetype(src_arche_id.clone(), comp_id, comp_manager);
 
-        // SAFETY: Archetypes are guaranteed to be unique, so we can safely get mutable references
-        let src_arche = unsafe { &mut *(self.get_mut_unchecked(src_arche_id) as *mut Archetype) };
-        let dst_arche = unsafe { &mut *(self.get_mut_unchecked(dst_arche_id) as *mut Archetype) };
+        // SAFETY: Archetypes are guaranteed to exist and be unique, so we can safely get mutable references
+        let (src_arche, dst_arche) =
+            unsafe { get_two_mut_unchecked(&mut self.archetype_table, src_arche_id, dst_arche_id) };
 
         // SAFETY: The destination archetype is guaranteed to have the component ID as it has
         //         been extended to include the component ID.
@@ -339,9 +340,9 @@ impl ArchetypeManager {
         let src_arche_id = &entity_record.archetype_id;
         let dst_arche_id = &self.get_reduced_archetype(src_arche_id.clone(), comp_id, comp_manager);
 
-        // SAFETY: Archetypes are guaranteed to be unique, so we can safely get mutable references
-        let src_arche = unsafe { &mut *(self.get_mut_unchecked(src_arche_id) as *mut Archetype) };
-        let dst_arche = unsafe { &mut *(self.get_mut_unchecked(dst_arche_id) as *mut Archetype) };
+        // SAFETY: Archetypes are guaranteed to exist and be unique, so we can safely get mutable references
+        let (src_arche, dst_arche) =
+            unsafe { get_two_mut_unchecked(&mut self.archetype_table, src_arche_id, dst_arche_id) };
 
         // SAFETY: The source archetype is guaranteed to have the component ID as it was checked, prior
         //         to calling this function, that the source archetype contains the component ID.
@@ -470,8 +471,9 @@ mod tests {
         manager.archetype_table.insert(arche_1_id.clone(), arche1);
         manager.archetype_table.insert(arche_2_id.clone(), arche2);
 
-        let src_arche = unsafe { &mut *(manager.get_mut_unchecked(&arche_1_id) as *mut Archetype) };
-        let dst_arche = unsafe { &mut *(manager.get_mut_unchecked(&arche_2_id) as *mut Archetype) };
+        let (src_arche, dst_arche) = unsafe {
+            get_two_mut_unchecked(&mut manager.archetype_table, &arche_1_id, &arche_2_id)
+        };
 
         dst_arche.entities.push(src_arche.entities.swap_remove(0));
         src_arche.entities.push(dst_arche.entities.swap_remove(0));

@@ -6,6 +6,7 @@ mod resource;
 mod system;
 mod world;
 mod event;
+mod util;
 
 pub use entity::Entity;
 pub use query::bundle::{ComponentBundle, ResourceBundle};
