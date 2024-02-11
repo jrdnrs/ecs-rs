@@ -82,7 +82,7 @@ impl<T: Component> ComponentBundle for &'static T {
     }
 
     unsafe fn fetch_item<'a>(storage: Self::Storage<'a>, index: usize) -> Self::Item<'a> {
-        storage.get_as_ptr_unchecked(index).as_ref::<T>()
+        storage.get_as_ptr(index).as_ref::<T>()
     }
 }
 
@@ -104,7 +104,7 @@ impl<T: Component> ComponentBundle for &'static mut T {
     }
 
     unsafe fn fetch_item<'a>(storage: Self::Storage<'a>, index: usize) -> Self::Item<'a> {
-        storage.get_as_ptr_unchecked(index).as_mut::<T>()
+        storage.get_as_ptr(index).as_mut::<T>()
     }
 }
 
@@ -131,7 +131,7 @@ impl<T: Component> ComponentBundle for Option<&'static T> {
     }
 
     unsafe fn fetch_item<'a>(storage: Self::Storage<'a>, index: usize) -> Self::Item<'a> {
-        storage.map(|storage| storage.get_as_ptr_unchecked(index).as_ref::<T>())
+        storage.map(|storage| storage.get_as_ptr(index).as_ref::<T>())
     }
 }
 
@@ -158,7 +158,7 @@ impl<T: Component> ComponentBundle for Option<&'static mut T> {
     }
 
     unsafe fn fetch_item<'a>(storage: Self::Storage<'a>, index: usize) -> Self::Item<'a> {
-        storage.map(|storage| storage.get_as_ptr_unchecked(index).as_mut::<T>())
+        storage.map(|storage| storage.get_as_ptr(index).as_mut::<T>())
     }
 }
 
@@ -183,8 +183,8 @@ impl<T: Component> ComponentBundle for Tracked<&'static T> {
 
     unsafe fn fetch_item<'a>(storage: Self::Storage<'a>, index: usize) -> Self::Item<'a> {
         let tracker = storage.tracker.as_ref().unwrap_unchecked();
-        let item_info = tracker.get_unchecked(index);
-        let item = storage.get_as_ptr_unchecked(index).as_ref::<T>();
+        let item_info = tracker.get(index);
+        let item = storage.get_as_ptr(index).as_ref::<T>();
 
         // If we are reading this component a single tick after it was modified, the `modified` and `read` ticks
         // will be equal. This does not mean it was modified in this current tick - `read` is updated **after**
@@ -218,8 +218,8 @@ impl<T: Component> ComponentBundle for Tracked<&'static mut T> {
 
     unsafe fn fetch_item<'a>(storage: Self::Storage<'a>, index: usize) -> Self::Item<'a> {
         let tracker = storage.tracker.as_ref().unwrap_unchecked();
-        let item_info = tracker.get_unchecked(index);
-        let item = storage.get_as_ptr_unchecked(index).as_mut::<T>();
+        let item_info = tracker.get(index);
+        let item = storage.get_as_ptr(index).as_mut::<T>();
 
         // If we are reading this component a single tick after it was modified, the `modified` and `read` ticks
         // will be equal. This does not mean it was modified in this current tick - `read` is updated **after**

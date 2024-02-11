@@ -173,7 +173,7 @@ impl<'w, C: ComponentBundle, R: ResourceBundle> Query<C, R> {
             for comp_id in self.filter.track.iter() {
                 unsafe {
                     archetype_manager
-                        .get_mut_unchecked(arche_id)
+                        .get_mut(arche_id)
                         .get_mut_storage(*comp_id)
                         .tracker
                         .as_mut()
@@ -285,9 +285,9 @@ mod tests {
         let now = std::time::Instant::now();
         for (s, h) in query.iter(&mut world) {
             if let Some(h) = h {
-                // println!("s: {}, h: {}", s.v, h.v);
+                s.v += h.v;
             } else {
-                // println!("s: {}", s.v);
+                s.v += 1;
             }
         }
         println!("time: {:?}", now.elapsed());
@@ -297,7 +297,7 @@ mod tests {
 
         let now = std::time::Instant::now();
         for (s, h) in query.iter(&mut world) {
-            // println!("s: {}, h: {}", s.v, h.v);
+            s.v *= h.v;
         }
         println!("time: {:?}", now.elapsed());
     }

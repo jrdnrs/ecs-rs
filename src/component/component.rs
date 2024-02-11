@@ -107,7 +107,7 @@ mod tests {
         let mut storage = ComponentStorage::new::<CompA>(0);
         unsafe { storage.push(42) };
 
-        assert_eq!(unsafe { storage.get_unchecked::<CompA>(0) }, &42);
+        assert_eq!(unsafe { storage.get::<CompA>(0) }, &42);
     }
 
     #[test]
@@ -118,7 +118,7 @@ mod tests {
 
         let mut storage = ComponentStorage::new::<CompA>(0);
         unsafe { storage.push(42) };
-        unsafe { storage.delete_unchecked(0) };
+        unsafe { storage.delete(0) };
 
         assert_eq!(storage.components.len(), 0);
     }
@@ -133,9 +133,9 @@ mod tests {
         unsafe { storage.push(42) };
 
         let mut other = ComponentStorage::new::<CompA>(1);
-        unsafe { storage.move_unchecked(0, &mut other) };
+        unsafe { storage.transfer(0, &mut other) };
 
         assert_eq!(storage.components.len(), 0);
-        assert_eq!(unsafe { other.get_unchecked::<CompA>(0) }, &42);
+        assert_eq!(unsafe { other.get::<CompA>(0) }, &42);
     }
 }

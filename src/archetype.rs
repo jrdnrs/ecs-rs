@@ -39,7 +39,7 @@ impl Archetype {
         }
     }
 
-    pub fn comp_ids(&self) -> impl Iterator<Item = &ComponentID> {
+    pub fn comp_ids(&self) -> &[ComponentID] {
         self.components.keys()
     }
 
@@ -48,31 +48,9 @@ impl Archetype {
     }
 
     /// # Safety
-    /// - The component IDs must exist within this archetype as well as the destination archetype, as no bounds
-    ///   checking is performed.
-    /// - The entity must be alive, and only exists in this archetype.
-    pub unsafe fn move_entity<'a>(
-        &mut self,
-        entity: Entity,
-        comp_ids: impl Iterator<Item = &'a ComponentID>,
-        dst_arche: &mut Archetype,
-        entity_manager: &mut EntityManager,
-    ) {
-        // SAFETY: As long as the above invariants are upheld, this is all safe
-        let entity_record = unsafe { entity_manager.get_record_unchecked(entity) };
-
-        for comp_id in comp_ids {
-            unsafe { self.move_component(*comp_id, entity_record.archetype_row, dst_arche) };
-        }
-
-        unsafe { self.delete_entity(entity, entity_manager) };
-        unsafe { dst_arche.push_entity(entity, entity_manager) };
-    }
-
-    /// # Safety
     /// - The entity must be alive, and does not already exist in this archetype.
     pub unsafe fn push_entity(&mut self, entity: Entity, entity_manager: &mut EntityManager) {
-        // SAFETY: As long as the above invariants are upheld, this is all safe
+        // SAFETY: Caller ensures that the entity is alive.
         let entity_record = unsafe { entity_manager.get_record_mut_unchecked(entity) };
 
         entity_record.archetype_row = self.entities.len();
@@ -83,8 +61,8 @@ impl Archetype {
     /// # Safety
     /// - The entity must be alive, and only exists in this archetype.
     pub unsafe fn delete_entity(&mut self, entity: Entity, entity_manager: &mut EntityManager) {
-        // SAFETY: As long as the above invariants are upheld, this is all safe
-        let entity_row = unsafe { entity_manager.get_record_unchecked(entity).archetype_row };
+        // SAFETY: Caller ensures that the entity is alive.
+        let entity_row = unsafe { entity_manager.get_record(entity).archetype_row };
 
         // SAFETY: This entity (at end of vec) already exists in this archetype, so the row is assumed to be valid
         unsafe {
@@ -112,7 +90,7 @@ impl Archetype {
     pub unsafe fn delete_component(&mut self, comp_id: ComponentID, row: usize) {
         // SAFETY: Deferred to the caller
         let storage = unsafe { self.get_mut_storage(comp_id) };
-        unsafe { storage.delete_unchecked(row) }
+        unsafe { storage.delete(row) }
     }
 
     /// # Safety
@@ -121,7 +99,7 @@ impl Archetype {
     pub unsafe fn get_component<T: Component>(&self, comp_id: ComponentID, row: usize) -> &T {
         // SAFETY: Deferred to the caller
         let storage = unsafe { self.get_storage(comp_id) };
-        unsafe { storage.get_unchecked(row) }
+        unsafe { storage.get(row) }
     }
 
     /// # Safety
@@ -134,14 +112,14 @@ impl Archetype {
     ) -> &mut T {
         // SAFETY: Deferred to the caller
         let storage = unsafe { self.get_mut_storage(comp_id) };
-        unsafe { storage.get_mut_unchecked(row) }
+        unsafe { storage.get_mut(row) }
     }
 
     /// # Safety
     /// - The component ID must exist within this archetype as well as the destination archetype, as no bounds
     ///   checking is performed.
     /// - The `src_row` must be within the bounds of the underlying vec.
-    pub unsafe fn move_component(
+    pub unsafe fn transfer_component(
         &mut self,
         comp_id: ComponentID,
         src_row: usize,
@@ -151,7 +129,34 @@ impl Archetype {
         let src_storage = unsafe { self.get_mut_storage(comp_id) };
         let dst_storage = unsafe { dst_arche.get_mut_storage(comp_id) };
 
-        unsafe { src_storage.move_unchecked(src_row, dst_storage) }
+        unsafe { src_storage.transfer(src_row, dst_storage) }
+    }
+
+    /// # Safety
+    /// - The component IDs must exist within this archetype as well as the destination archetype, as no bounds
+    ///   checking is performed.
+    /// - The entity must be alive, and only exists in this archetype.
+    pub unsafe fn transfer_entity<'a>(
+        &mut self,
+        entity: Entity,
+        comp_ids: impl Iterator<Item = ComponentID>,
+        dst_arche: &mut Archetype,
+        entity_manager: &mut EntityManager,
+    ) {
+        // SAFETY: Caller ensures that the entity is alive.
+        let entity_record = unsafe { entity_manager.get_record(entity) };
+
+        for comp_id in comp_ids {
+            // SAFETY:
+            // - Caller ensures component ID is valid for both archetypes.
+            // - Entity is alive, so archetype_row is assumed to be valid
+            unsafe { self.transfer_component(comp_id, entity_record.archetype_row, dst_arche) };
+        }
+
+        // SAFETY: Entity is alive and exists within this archetype
+        unsafe { self.delete_entity(entity, entity_manager) };
+        // SAFETY: Entity is alive and does not exist within this destination archetype
+        unsafe { dst_arche.push_entity(entity, entity_manager) };
     }
 
     /// # Safety
@@ -162,6 +167,9 @@ impl Archetype {
             "Component ID does not match archetype"
         );
 
+        // SAFETY: Caller ensures that the component ID exists within this archetype, so this key is
+        //         valid, and we do not remove components from archetypes so the underlying index is
+        //         guaranteed to be valid as well.
         unsafe { self.components.get_unchecked(comp_id) }
     }
 
@@ -173,6 +181,9 @@ impl Archetype {
             "Component ID does not match archetype"
         );
 
+        // SAFETY: Caller ensures that the component ID exists within this archetype, so this key is
+        //         valid, and we do not remove components from archetypes so the underlying index is
+        //         guaranteed to be valid as well.
         unsafe { self.components.get_mut_unchecked(comp_id) }
     }
 }
@@ -237,38 +248,36 @@ impl ArchetypeManager {
         }
     }
 
-    pub fn get(&self, arche_id: &ArchetypeID) -> Option<&Archetype> {
-        self.archetype_table.get(arche_id)
-    }
-
     /// # Safety
     /// - The archetype ID must exist within this manager, as no existence check is performed.
-    pub unsafe fn get_unchecked(&self, arche_id: &ArchetypeID) -> &Archetype {
+    pub unsafe fn get(&self, arche_id: &ArchetypeID) -> &Archetype {
         debug_assert!(self.archetype_table.contains_key(arche_id));
         unsafe { self.archetype_table.get(arche_id).unwrap_unchecked() }
     }
 
-    pub fn get_mut(&mut self, arche_id: &ArchetypeID) -> Option<&mut Archetype> {
-        self.archetype_table.get_mut(arche_id)
-    }
-
     /// # Safety
     /// - The archetype ID must exist within this manager, as no existence check is performed.
-    pub unsafe fn get_mut_unchecked(&mut self, arche_id: &ArchetypeID) -> &mut Archetype {
+    pub unsafe fn get_mut(&mut self, arche_id: &ArchetypeID) -> &mut Archetype {
         debug_assert!(self.archetype_table.contains_key(arche_id));
         unsafe { self.archetype_table.get_mut(arche_id).unwrap_unchecked() }
     }
 
-    pub fn delete_entity(&mut self, entity: Entity, entity_manager: &mut EntityManager) {
-        // SAFETY: Already carried out entity validation prior to calling this function.
-        let entity_record = unsafe { entity_manager.get_record_unchecked(entity) };
+    /// # Safety
+    /// - The entity must be alive.
+    pub unsafe fn delete_entity(&mut self, entity: Entity, entity_manager: &mut EntityManager) {
+        // SAFETY: Caller ensures that the entity is alive.
+        let entity_record = unsafe { entity_manager.get_record(entity) };
 
-        let arche = unsafe { self.get_mut_unchecked(&entity_record.archetype_id) };
+        // SAFETY: Entity is alive, so archetype_id is valid as it was copied from the archetype, and
+        //         we do not delete archetypes.
+        let arche = unsafe { self.get_mut(&entity_record.archetype_id) };
 
         for storage in arche.components.values_mut() {
-            unsafe { storage.delete_unchecked(entity_record.archetype_row) };
+            // SAFETY: Entity is alive, so archetype_row is assumed to be valid
+            unsafe { storage.delete(entity_record.archetype_row) };
         }
 
+        // SAFETY: Entity is alive
         unsafe { arche.delete_entity(entity, entity_manager) };
     }
 
@@ -280,21 +289,25 @@ impl ArchetypeManager {
         dst_arche_id: &ArchetypeID,
         edge_comp_id: &ComponentID,
     ) {
-        unsafe {
-            self.get_mut_unchecked(src_arche_id)
-                .edges
-                .insert(edge_comp_id.clone(), dst_arche_id.clone())
-        };
-        unsafe {
-            self.get_mut_unchecked(dst_arche_id)
-                .edges
-                .insert(edge_comp_id.clone(), src_arche_id.clone())
-        };
+        // SAFETY: Caller ensure `src_arche_id` exists within this manager.
+        let src_arche = unsafe { self.get_mut(src_arche_id) };
+        src_arche
+            .edges
+            .insert(edge_comp_id.clone(), dst_arche_id.clone());
+
+        // SAFETY: Caller ensure `dst_arche_id` exists within this manager.
+        let dst_arche = unsafe { self.get_mut(dst_arche_id) };
+        dst_arche
+            .edges
+            .insert(edge_comp_id.clone(), src_arche_id.clone());
     }
 
-    /// There is a lot of unsafe code in this function, but it is all "safe" as long as the caller
-    /// ensures that the entity is valid.
-    pub fn add_component<T: Component>(
+    /// # Safety
+    /// - The entity must be alive.
+    ///
+    /// # Panics
+    /// - If the component has not been registered with the component manager.
+    pub unsafe fn add_component<T: Component>(
         &mut self,
         component: T,
         entity: Entity,
@@ -303,12 +316,15 @@ impl ArchetypeManager {
     ) {
         let comp_id = comp_manager.get_id::<T>();
 
-        // SAFETY: Already carried out entity validation prior to calling this function.
-        let entity_record = unsafe { entity_manager.get_record_unchecked(entity) };
+        // SAFETY: Caller ensures that the entity is alive
+        let entity_record = unsafe { entity_manager.get_record(entity) };
 
         let src_arche_id = &entity_record.archetype_id;
+
+        // SAFETY: `src_arche_id`, as retrieved from the entity record, is guaranteed to be valid
+        //        as it was copied from the archetype itself, and we do not delete archetypes.
         let dst_arche_id =
-            &self.get_extended_archetype(src_arche_id.clone(), comp_id, comp_manager);
+            unsafe { &self.get_extended_archetype(src_arche_id.clone(), comp_id, comp_manager) };
 
         // SAFETY: Archetypes are guaranteed to exist and be unique, so we can safely get mutable references
         let (src_arche, dst_arche) =
@@ -318,15 +334,36 @@ impl ArchetypeManager {
         //         been extended to include the component ID.
         unsafe { dst_arche.push_component(comp_id, component) };
 
-        // TODO: this is dumb and temporary
-        let comp_ids: Vec<ComponentID> = src_arche.comp_ids().map(|id| *id).collect();
+        // HACK: Get around borrow checker by redefining slice with different lifetime, until I find a
+        //       better way to do this. These component IDs are read from a different part of the archetype
+        //       than we are going to mutate, so it should be safe.
+        let comp_ids = {
+            // SAFETY: The slice is just being redefined with a different lifetime which is ok as we are
+            //         not actually modifying the underlying data.
+            let comp_id_slice = unsafe {
+                core::slice::from_raw_parts(
+                    src_arche.comp_ids().as_ptr(),
+                    src_arche.comp_ids().len(),
+                )
+            };
+            comp_id_slice.iter().copied()
+        };
 
-        unsafe { src_arche.move_entity(entity, comp_ids.iter(), dst_arche, entity_manager) };
+        // SAFETY:
+        // - The entity is alive, and only exists in the source archetype.
+        // - The source archetype is guaranteed to have the component IDs as we source the
+        //   component IDs from the source archetype.
+        // - As we are adding a component, in moving to the destination archetype, the destination
+        //   archetype will have the component IDs of the source archetype.
+        unsafe { src_arche.transfer_entity(entity, comp_ids, dst_arche, entity_manager) };
     }
 
-    /// There is a lot of unsafe code in this function, but it is all "safe" as long as the caller
-    /// ensures that the entity is valid.
-    pub fn remove_component<T: Component>(
+    /// # Safety
+    /// - The entity must be alive.
+    ///
+    /// # Panics
+    /// - If the component has not been registered with the component manager.
+    pub unsafe fn remove_component<T: Component>(
         &mut self,
         entity: Entity,
         comp_manager: &ComponentManager,
@@ -335,35 +372,57 @@ impl ArchetypeManager {
         let comp_id = comp_manager.get_id::<T>();
 
         // SAFETY: Already carried out entity validation prior to calling this function.
-        let entity_record = unsafe { entity_manager.get_record_unchecked(entity) };
+        let entity_record = unsafe { entity_manager.get_record(entity) };
 
         let src_arche_id = &entity_record.archetype_id;
-        let dst_arche_id = &self.get_reduced_archetype(src_arche_id.clone(), comp_id, comp_manager);
+
+        // SAFETY: `src_arche_id`, as retrieved from the entity record, is guaranteed to be valid
+        //        as it was copied from the archetype itself, and we do not delete archetypes.
+        let dst_arche_id =
+            unsafe { &self.get_reduced_archetype(src_arche_id.clone(), comp_id, comp_manager) };
 
         // SAFETY: Archetypes are guaranteed to exist and be unique, so we can safely get mutable references
         let (src_arche, dst_arche) =
             unsafe { get_two_mut_unchecked(&mut self.archetype_table, src_arche_id, dst_arche_id) };
 
-        // SAFETY: The source archetype is guaranteed to have the component ID as it was checked, prior
-        //         to calling this function, that the source archetype contains the component ID.
+        // SAFETY: The source archetype is guaranteed to have the component ID as it has
+        //         been reduced to exclude the component ID.
         unsafe { src_arche.delete_component(comp_id, entity_record.archetype_row) };
 
-        // TODO: this is dumb and temporary
-        let comp_ids: Vec<ComponentID> = dst_arche.comp_ids().map(|id| *id).collect();
+        // HACK: Get around borrow checker by redefining slice with different lifetime, until I find a
+        //       better way to do this. These component IDs are read from a different part of the archetype
+        //       than we are going to mutate, so it should be safe.
+        let comp_ids = {
+            // SAFETY: The slice is just being redefined with a different lifetime which is ok as we are
+            //         not actually modifying the underlying data.
+            let comp_id_slice = unsafe {
+                core::slice::from_raw_parts(
+                    dst_arche.comp_ids().as_ptr(),
+                    dst_arche.comp_ids().len(),
+                )
+            };
+            comp_id_slice.iter().copied()
+        };
 
-        unsafe { src_arche.move_entity(entity, comp_ids.iter(), dst_arche, entity_manager) };
+        // SAFETY:
+        // - The entity is alive, and only exists in the source archetype.
+        // - The destination archetype is guaranteed to have the component IDs as we source the
+        //   component IDs from the destination archetype.
+        // - As we are removing a component, in moving to the destination archetype, the source
+        //   archetype will have the component IDs of the destination archetype.
+        unsafe { src_arche.transfer_entity(entity, comp_ids, dst_arche, entity_manager) };
     }
 
-    pub fn get_extended_archetype(
+    /// # Safety
+    /// - `src_arche_id` must be a valid archetype within this manager.
+    pub unsafe fn get_extended_archetype(
         &mut self,
         src_arche_id: ArchetypeID,
         new_comp_id: ComponentID,
         comp_manager: &ComponentManager,
     ) -> ArchetypeID {
-        // archetype already has the edge to the archetype with the component
-        if let Some(dst_arche_id) =
-            unsafe { self.get_unchecked(&src_arche_id).edges.get(new_comp_id) }
-        {
+        // Archetype already has the edge to the archetype with the component
+        if let Some(dst_arche_id) = unsafe { self.get(&src_arche_id).edges.get(new_comp_id) } {
             return dst_arche_id.clone();
         }
 
@@ -390,7 +449,7 @@ impl ArchetypeManager {
         );
 
         // add the other components storages, inherited from the src archetype
-        for comp_storage in unsafe { self.get_unchecked(&src_arche_id).components.values() } {
+        for comp_storage in unsafe { self.get(&src_arche_id).components.values() } {
             dst_arche
                 .components
                 .insert(comp_storage.id, ComponentStorage::from_other(comp_storage));
@@ -403,16 +462,16 @@ impl ArchetypeManager {
         return target_arche_id;
     }
 
-    pub fn get_reduced_archetype(
+    /// # Safety
+    /// - `src_arche_id` must be a valid archetype within this manager.
+    pub unsafe fn get_reduced_archetype(
         &mut self,
         src_arche_id: ArchetypeID,
         old_comp_id: ComponentID,
         comp_manager: &ComponentManager,
     ) -> ArchetypeID {
         // archetype already has the edge to the archetype with the component
-        if let Some(dst_arche_id) =
-            unsafe { self.get_unchecked(&src_arche_id).edges.get(old_comp_id) }
-        {
+        if let Some(dst_arche_id) = unsafe { self.get(&src_arche_id).edges.get(old_comp_id) } {
             return dst_arche_id.clone();
         }
 
@@ -433,7 +492,7 @@ impl ArchetypeManager {
         let mut dst_arche = Archetype::new(target_arche_id.clone());
 
         // add the components storages, inherited from the src archetype
-        for comp_storage in unsafe { self.get_unchecked(&src_arche_id).components.values() } {
+        for comp_storage in unsafe { self.get(&src_arche_id).components.values() } {
             if comp_storage.id == old_comp_id {
                 continue;
             }

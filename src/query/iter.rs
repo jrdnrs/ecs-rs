@@ -42,7 +42,7 @@ impl<'w, 'q, C: ComponentBundle> Iterator for ComponentBundleIter<'w, 'q, C> {
             // SAFETY:
             // - The archetype ID will definitely be valid as the iter was built using IDs from the
             //   archetype manager itself.
-            let archetype = unsafe { self.archetype_manager.get_unchecked(archetype_id) };
+            let archetype = unsafe { self.archetype_manager.get(archetype_id) };
 
             self.storages = Some(C::prepare_storage(archetype, self.parameter_ids));
             self.len = archetype.entities.len();

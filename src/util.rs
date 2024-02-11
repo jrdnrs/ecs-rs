@@ -1,5 +1,7 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
+/// # Panics
+/// - If the keys are the same
 pub fn get_two_mut<'a, T, K>(
     map: &'a mut HashMap<K, T, ahash::RandomState>,
     key1: &K,

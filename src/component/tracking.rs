@@ -50,24 +50,16 @@ impl ChangeTracking {
         self.info.push(info);
     }
 
-    pub fn get(&self, index: usize) -> Option<&TrackingInfo> {
-        self.info.get(index)
-    }
-
     /// # Safety
     /// - The index must be within the bounds of the underlying vec.
-    pub unsafe fn get_unchecked(&self, index: usize) -> &TrackingInfo {
+    pub unsafe fn get(&self, index: usize) -> &TrackingInfo {
         debug_assert!(index < self.info.len());
         unsafe { self.info.get_unchecked(index) }
     }
 
-    pub fn get_mut(&mut self, index: usize) -> Option<&mut TrackingInfo> {
-        self.info.get_mut(index)
-    }
-
     /// # Safety
     /// - The index must be within the bounds of the underlying vec.
-    pub unsafe fn get_unchecked_mut(&mut self, index: usize) -> &mut TrackingInfo {
+    pub unsafe fn get_mut(&mut self, index: usize) -> &mut TrackingInfo {
         debug_assert!(index < self.info.len());
         unsafe { self.info.get_unchecked_mut(index) }
     }

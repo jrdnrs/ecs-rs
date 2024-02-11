@@ -51,8 +51,11 @@ impl World {
             return;
         }
 
-        self.archetype_manager
-            .delete_entity(entity, &mut self.entity_manager);
+        // SAFETY: We just checked that the entity is alive
+        unsafe {
+            self.archetype_manager
+                .delete_entity(entity, &mut self.entity_manager)
+        };
 
         self.entity_manager.delete(entity)
     }
@@ -75,55 +78,78 @@ impl World {
         self.event_manager.register_event(id);
     }
 
+    /// Returns true if the specified entity has the specified component. Also will return false if
+    /// the entity is not alive.
+    ///
+    /// # Panics
+    /// - If the component type has not been registered
     pub fn has_component<C: Component>(&self, entity: Entity) -> bool {
-        let Some(entity_record) = self.entity_manager.get_record(entity) else {
+        if !self.entity_manager.alive(entity) {
             return false;
-        };
+        }
+
+        // SAFETY: We just checked that the entity is alive
+        let entity_record = unsafe { self.entity_manager.get_record(entity) };
 
         let comp_id = self.component_manager.get_id::<C>();
         entity_record.archetype_id.test(comp_id)
     }
 
     /// Sets the provided component for the specified entity in the current view
+    ///
+    /// # Panics
+    /// - If the component type has not been registered
     pub fn add_component<C: Component>(&mut self, entity: Entity, component: C) {
         if self.has_component::<C>(entity) {
             return;
         }
 
-        self.archetype_manager.add_component(
-            component,
-            entity,
-            &self.component_manager,
-            &mut self.entity_manager,
-        );
+        // SAFETY: `has_component` already checked that the entity is alive
+        unsafe {
+            self.archetype_manager.add_component(
+                component,
+                entity,
+                &self.component_manager,
+                &mut self.entity_manager,
+            )
+        };
     }
 
     /// Removes the component of the specified type, for specified entity, in the current view
+    ///
+    /// # Panics
+    /// - If the component type has not been registered
     pub fn remove_component<C: Component>(&mut self, entity: Entity) {
         if !self.has_component::<C>(entity) {
             return;
         }
 
-        self.archetype_manager.remove_component::<C>(
-            entity,
-            &self.component_manager,
-            &mut self.entity_manager,
-        );
+        // SAFETY: `has_component` already checked that the entity is alive
+        unsafe {
+            self.archetype_manager.remove_component::<C>(
+                entity,
+                &self.component_manager,
+                &mut self.entity_manager,
+            )
+        };
     }
 
+    /// # Panics
+    /// - If the component type has not been registered
     pub fn get_component<C: Component>(&self, entity: Entity) -> Option<&C> {
-        let comp_id = self.component_manager.get_id::<C>();
+        if !self.entity_manager.alive(entity) {
+            return None;
+        }
 
-        // This confirms that entity is alive
-        let entity_record = self.entity_manager.get_record(entity)?;
+        // SAFETY: We just checked that the entity is alive
+        let entity_record = unsafe { self.entity_manager.get_record(entity) };
+
+        let comp_id = self.component_manager.get_id::<C>();
 
         // SAFETY:
         // - If entity is alive, then archetype is guaranteed to be valid as it wrote its ID to the
         //   entity record in the first place.
-        let arche = unsafe {
-            self.archetype_manager
-                .get_unchecked(&entity_record.archetype_id)
-        };
+        let arche = unsafe { self.archetype_manager.get(&entity_record.archetype_id) };
         if !arche.has_component(comp_id) {
             return None;
         }
@@ -138,18 +164,19 @@ impl World {
     }
 
     pub fn get_component_mut<C: Component>(&mut self, entity: Entity) -> Option<&mut C> {
-        let comp_id = self.component_manager.get_id::<C>();
+        if !self.entity_manager.alive(entity) {
+            return None;
+        }
 
-        // This confirms that entity is alive
-        let entity_record = self.entity_manager.get_record(entity)?;
+        // SAFETY: We just checked that the entity is alive
+        let entity_record = unsafe { self.entity_manager.get_record(entity) };
+
+        let comp_id = self.component_manager.get_id::<C>();
 
         // SAFETY:
         // - If entity is alive, then archetype is guaranteed to be valid as it wrote its ID to the
         //   entity record in the first place.
-        let arche = unsafe {
-            self.archetype_manager
-                .get_mut_unchecked(&entity_record.archetype_id)
-        };
+        let arche = unsafe { self.archetype_manager.get_mut(&entity_record.archetype_id) };
         if !arche.has_component(comp_id) {
             return None;
         }
