@@ -12,7 +12,7 @@ pub type ComponentID = usize;
 /// Stores all component data, organised by component type into component storages
 pub struct ComponentManager {
     /// Used to translate component type ids to component ids
-    ids: HashMap<TypeId, ComponentID, ahash::RandomState>,
+    ids: HashMap<TypeId, ComponentID, nohash_hasher::BuildNoHashHasher<u64>>,
 
     /// Stores the metadata for each component type, accessible using the component id
     /// as the index
@@ -22,7 +22,7 @@ pub struct ComponentManager {
 impl ComponentManager {
     pub fn new() -> Self {
         Self {
-            ids: HashMap::with_capacity_and_hasher(8, ahash::RandomState::new()),
+            ids: HashMap::with_capacity_and_hasher(8, nohash_hasher::BuildNoHashHasher::default()),
             metadata: Vec::with_capacity(8),
         }
     }

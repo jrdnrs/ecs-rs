@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 collections = { git = "https://github.com/jrdnrs/collections-rs", version = "0.1.0" }
+nohash-hasher = "0.2.0"
 ahash = "0.8"
