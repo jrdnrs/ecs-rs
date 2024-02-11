@@ -67,10 +67,21 @@ impl ResourceManager {
     }
 
     pub fn get_id<R: Resource>(&self) -> ResourceId<R> {
-        ResourceId::new(*self.ids.get(&TypeId::of::<R>()).expect(&format!(
-            "Resource type {:?} not registered",
-            std::any::type_name::<R>()
-        )))
+        #[cold]
+        #[inline(never)]
+        #[track_caller]
+        fn assert_failed<R>() -> ! {
+            panic!(
+                "Resource type {:?} not registered",
+                std::any::type_name::<R>()
+            );
+        }
+
+        let Some(&id) = self.ids.get(&TypeId::of::<R>()) else {
+            assert_failed::<R>();
+        };
+
+        ResourceId::new(id)
     }
 
     pub fn get_storage(&self) -> &[Box<UnsafeCell<dyn Resource>>] {

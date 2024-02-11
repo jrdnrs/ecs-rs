@@ -43,10 +43,21 @@ impl ComponentManager {
     /// # Panics
     /// - If the component type is not registered
     pub fn get_id<C: Component>(&self) -> ComponentID {
-        *self.ids.get(&C::type_id()).expect(&format!(
-            "Component type {:?} not registered",
-            std::any::type_name::<C>()
-        ))
+        #[cold]
+        #[inline(never)]
+        #[track_caller]
+        fn assert_failed<C>() -> ! {
+            panic!(
+                "Component type {:?} not registered",
+                std::any::type_name::<C>()
+            );
+        }
+
+        let Some(&id) = self.ids.get(&TypeId::of::<C>()) else {
+            assert_failed::<C>();
+        };
+
+        id
     }
 
     /// Returns the component layout for the given component type
