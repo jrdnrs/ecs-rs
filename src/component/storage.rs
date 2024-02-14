@@ -76,7 +76,7 @@ impl ComponentStorage {
 
     /// # Safety
     /// - Tracking must be enabled for this component storage.
-    pub unsafe fn get_tracker_mut(&mut self) -> &mut ChangeTracking {
+    pub unsafe fn get_mut_tracker(&mut self) -> &mut ChangeTracking {
         debug_assert!(self.is_tracked());
         unsafe { self.tracker.as_mut().unwrap_unchecked() }
     }
@@ -91,7 +91,7 @@ impl ComponentStorage {
         unsafe { self.components.push(comp_ptr) };
 
         if self.is_tracked() {
-            let tracker = self.get_tracker_mut();
+            let tracker = self.get_mut_tracker();
 
             // TODO: we need to get current world tick to update last_write below
             let tick = 0;
@@ -136,16 +136,10 @@ impl ComponentStorage {
 
         // SAFETY: - We are correctly dropping the component
         //         - Deferred bounds check to the caller
-        unsafe {
-            // TODO: Consider implementing an internal `swap_drop` or something for ErasedVec.
-            //       For now, `as_ptr().into()` coerces the associated lifetime of `ptr`, so that
-            //       we can reborrow the ErasedVec as mutable to use the `dispose` method
-            let ptr = self.components.swap_remove_unchecked(index).as_ptr().into();
-            self.components.erased_type().dispose(ptr);
-        }
+        unsafe { self.components.swap_remove_drop_unchecked(index) };
 
         if self.is_tracked() {
-            let tracker = self.get_tracker_mut();
+            let tracker = self.get_mut_tracker();
             tracker.delete(index);
         }
     }
@@ -163,12 +157,12 @@ impl ComponentStorage {
         }
 
         if self.is_tracked() {
-            let tracker = self.get_tracker_mut();
+            let tracker = self.get_mut_tracker();
             tracker.delete(src_index);
         }
 
         if dst.is_tracked() {
-            let tracker = dst.get_tracker_mut();
+            let tracker = dst.get_mut_tracker();
 
             // TODO: we need to get current world tick to update last_write below
             let tick = 0;
@@ -180,7 +174,22 @@ impl ComponentStorage {
 
     /// # Safety
     /// - The generic type parameter must match the underlying type of this component storage.
-    pub unsafe fn iter<C: Component>(&self) -> core::slice::Iter<'_, UnsafeCell<C>> {
-        unsafe { self.components.as_slice::<C>().iter() }
+    #[inline]
+    pub unsafe fn as_slice<C: Component>(&self) -> &[C] {
+        unsafe { self.components.as_slice::<C>() }
+    }
+
+    /// # Safety
+    /// - The generic type parameter must match the underlying type of this component storage.
+    #[inline]
+    pub unsafe fn as_slice_mut<C: Component>(&mut self) -> &mut [C] {
+        unsafe { self.components.as_slice_mut::<C>() }
+    }
+
+    /// # Safety
+    /// - The generic type parameter must match the underlying type of this component storage.
+    #[inline]
+    pub unsafe fn as_slice_unsafe_cell<C: Component>(&self) -> &[UnsafeCell<C>] {
+        unsafe { self.components.as_slice_unsafe_cell::<C>() }
     }
 }

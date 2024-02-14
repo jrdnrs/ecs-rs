@@ -9,7 +9,8 @@ use collections::Ptr;
 /// Unique sequential integer
 pub type ComponentID = usize;
 
-/// Stores all component data, organised by component type into component storages
+/// All component data is stored directly in the archetypes, so the component manager
+/// is mostly just responsible for translating component type ids to component ids
 pub struct ComponentManager {
     /// Used to translate component type ids to component ids
     ids: HashMap<TypeId, ComponentID, nohash_hasher::BuildNoHashHasher<u64>>,

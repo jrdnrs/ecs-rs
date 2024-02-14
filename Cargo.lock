@@ -24,7 +24,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 [[package]]
 name = "collections"
 version = "0.1.0"
-source = "git+https://github.com/jrdnrs/collections-rs#e8e2ccbc3448bbe4a57a411945acbb198cea656c"
+source = "git+https://github.com/jrdnrs/collections-rs#af2720001e4b6f8b0a42771bfcbe50336c0371e9"
 
 [[package]]
 name = "ecs"

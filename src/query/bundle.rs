@@ -1,4 +1,5 @@
 use core::cell::UnsafeCell;
+use std::ptr::NonNull;
 
 use crate::{
     archetype::Archetype,
@@ -66,7 +67,7 @@ impl ComponentBundle for () {
 
 impl<T: Component> ComponentBundle for &'static T {
     type Item<'a> = &'a T;
-    type Storage<'a> = &'a ComponentStorage;
+    type Storage<'a> = &'a [T];
     type Id = ComponentID;
 
     fn parameter_ids(component_manager: &ComponentManager) -> Self::Id {
@@ -78,17 +79,17 @@ impl<T: Component> ComponentBundle for &'static T {
     }
 
     fn prepare_storage<'a>(archetype: &'a Archetype, id: &Self::Id) -> Self::Storage<'a> {
-        unsafe { archetype.get_storage(*id) }
+        unsafe { archetype.get_storage(*id).as_slice() }
     }
 
     unsafe fn fetch_item<'a>(storage: Self::Storage<'a>, index: usize) -> Self::Item<'a> {
-        storage.get_as_ptr(index).as_ref::<T>()
+        &*storage.get_unchecked(index)
     }
 }
 
 impl<T: Component> ComponentBundle for &'static mut T {
     type Item<'a> = &'a mut T;
-    type Storage<'a> = &'a ComponentStorage;
+    type Storage<'a> = &'a [UnsafeCell<T>];
     type Id = ComponentID;
 
     fn parameter_ids(component_manager: &ComponentManager) -> Self::Id {
@@ -100,11 +101,11 @@ impl<T: Component> ComponentBundle for &'static mut T {
     }
 
     fn prepare_storage<'a>(archetype: &'a Archetype, id: &Self::Id) -> Self::Storage<'a> {
-        unsafe { archetype.get_storage(*id) }
+        unsafe { archetype.get_storage(*id).as_slice_unsafe_cell() }
     }
 
     unsafe fn fetch_item<'a>(storage: Self::Storage<'a>, index: usize) -> Self::Item<'a> {
-        storage.get_as_ptr(index).as_mut::<T>()
+        &mut *storage.get_unchecked(index).get()
     }
 }
 
