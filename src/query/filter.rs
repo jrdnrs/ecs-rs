@@ -76,13 +76,15 @@ pub struct Filter {
 
 impl Filter {
     pub fn matches_archetype(&self, archetype: &mut Archetype) -> bool {
-        let matches =
-            archetype.id.contains(&self.and_bitset) && archetype.id.contains_none(&self.not_bitset);
+        let matches = archetype.component_id_bitset.contains(&self.and_bitset)
+            && archetype
+                .component_id_bitset
+                .contains_none(&self.not_bitset);
 
         if matches {
             // Enable tracking for components that have opted in (via Tracked<T> parameter)
-            for comp_id in self.track.iter() {
-                unsafe { archetype.get_mut_storage(*comp_id).enable_tracking() };
+            for &comp_id in self.track.iter() {
+                unsafe { archetype.get_mut_storage(comp_id).enable_tracking() };
             }
         }
 
@@ -94,9 +96,9 @@ impl Filter {
         archetype_manager: &mut ArchetypeManager,
     ) -> Vec<ArchetypeID> {
         let mut matching = Vec::new();
-        for archetype in archetype_manager.archetypes_mut() {
+        for archetype in archetype_manager.archetype_table.iter_mut() {
             if self.matches_archetype(archetype) {
-                matching.push(archetype.id.clone());
+                matching.push(archetype.id);
             }
         }
         return matching;
@@ -130,7 +132,6 @@ impl<T> Tracked<T> {
         }
     }
 }
-
 
 pub struct And<T> {
     pub(crate) inner: T,

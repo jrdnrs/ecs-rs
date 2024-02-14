@@ -150,15 +150,14 @@ impl<'w, C: ComponentBundle, R: ResourceBundle> Query<C, R> {
     }
 
     pub(crate) fn update_archetype_ids(&mut self, archetype_manager: &mut ArchetypeManager) {
-        for arche_id in archetype_manager.new_archetypes_queue.iter() {
+        for &arche_id in archetype_manager.new_archetypes_queue.iter() {
             let mut archetype = unsafe {
                 archetype_manager
                     .archetype_table
-                    .get_mut(arche_id)
-                    .unwrap_unchecked()
+                    .get_unchecked_mut(arche_id)
             };
             if self.filter.matches_archetype(&mut archetype) {
-                self.archetype_ids.push(archetype.id.clone());
+                self.archetype_ids.push(archetype.id);
             }
         }
     }
@@ -168,16 +167,14 @@ impl<'w, C: ComponentBundle, R: ResourceBundle> Query<C, R> {
         archetype_manager: &mut ArchetypeManager,
         tick: u32,
     ) {
-        // TODO: Clean-up needed, this updates the last_read of all tracked components
-        for arche_id in self.archetype_ids.iter() {
-            for comp_id in self.filter.track.iter() {
+        // this updates the last_read of all tracked components
+        for &arche_id in self.archetype_ids.iter() {
+            for &comp_id in self.filter.track.iter() {
                 unsafe {
                     archetype_manager
                         .get_mut(arche_id)
-                        .get_mut_storage(*comp_id)
-                        .tracker
-                        .as_mut()
-                        .unwrap_unchecked()
+                        .get_mut_storage(comp_id)
+                        .get_mut_tracker()
                         .last_read = tick
                 };
             }
@@ -187,8 +184,7 @@ impl<'w, C: ComponentBundle, R: ResourceBundle> Query<C, R> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{entity::Entity, World, And};
-
+    use crate::{entity::Entity, And, World};
 
     struct Speed {
         v: usize,

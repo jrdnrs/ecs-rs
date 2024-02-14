@@ -200,7 +200,7 @@ impl<C: Component> Command for FlagModifiedCommand<C> {
         let comp_id = world.component_manager.get_id::<C>();
         let entity_record = unsafe { world.entity_manager.get_record(self.entity) };
 
-        let archetype = unsafe { world.archetype_manager.get_mut(&entity_record.archetype_id) };
+        let archetype = unsafe { world.archetype_manager.get_mut(entity_record.archetype_id) };
         let storage = unsafe { archetype.get_mut_storage(comp_id) };
 
         debug_assert!(storage.is_tracked());

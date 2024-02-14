@@ -90,9 +90,9 @@ impl World {
 
         // SAFETY: We just checked that the entity is alive
         let entity_record = unsafe { self.entity_manager.get_record(entity) };
-
+        let archetype = unsafe { self.archetype_manager.get(entity_record.archetype_id) };
         let comp_id = self.component_manager.get_id::<C>();
-        entity_record.archetype_id.test(comp_id)
+        archetype.component_id_bitset.test(comp_id)
     }
 
     /// Sets the provided component for the specified entity in the current view
@@ -149,7 +149,7 @@ impl World {
         // SAFETY:
         // - If entity is alive, then archetype is guaranteed to be valid as it wrote its ID to the
         //   entity record in the first place.
-        let arche = unsafe { self.archetype_manager.get(&entity_record.archetype_id) };
+        let arche = unsafe { self.archetype_manager.get(entity_record.archetype_id) };
         if !arche.has_component(comp_id) {
             return None;
         }
@@ -160,7 +160,7 @@ impl World {
         // - Entity is guaranteed to be alive, so row is valid as it will still be maintained by the archetype
         let component = unsafe { arche.get_component(comp_id, entity_record.archetype_row) };
 
-        return Some(component);
+        Some(component)
     }
 
     pub fn get_component_mut<C: Component>(&mut self, entity: Entity) -> Option<&mut C> {
@@ -176,7 +176,7 @@ impl World {
         // SAFETY:
         // - If entity is alive, then archetype is guaranteed to be valid as it wrote its ID to the
         //   entity record in the first place.
-        let arche = unsafe { self.archetype_manager.get_mut(&entity_record.archetype_id) };
+        let arche = unsafe { self.archetype_manager.get_mut(entity_record.archetype_id) };
         if !arche.has_component(comp_id) {
             return None;
         }
@@ -187,7 +187,7 @@ impl World {
         // - Entity is guaranteed to be alive, so row is valid as it will still be maintained by the archetype
         let component = unsafe { arche.get_mut_component(comp_id, entity_record.archetype_row) };
 
-        return Some(component);
+        Some(component)
     }
 
     pub fn add_resource<R: Resource>(&mut self, resource: R) -> ResourceId<R> {
