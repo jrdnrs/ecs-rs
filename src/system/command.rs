@@ -199,14 +199,13 @@ impl<C: Component> Command for FlagModifiedCommand<C> {
     fn execute(self, world: &mut World) {
         let comp_id = world.component_manager.get_id::<C>();
         let entity_record = unsafe { world.entity_manager.get_record(self.entity) };
-
         let archetype = unsafe { world.archetype_manager.get_mut(entity_record.archetype_id) };
         let storage = unsafe { archetype.get_mut_storage(comp_id) };
 
         debug_assert!(storage.is_tracked());
 
-        let tracker = unsafe { storage.tracker.as_mut().unwrap_unchecked() };
-        let info = unsafe { tracker.info.get_unchecked_mut(entity_record.archetype_row) };
+        let tracker = unsafe { storage.get_mut_tracker() };
+        let info = unsafe { tracker.get_mut(entity_record.archetype_row) };
 
         info.modified = world.tick;
         tracker.last_write = world.tick;

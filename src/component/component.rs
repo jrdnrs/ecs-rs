@@ -132,7 +132,7 @@ mod tests {
         unsafe { storage.push(42) };
         unsafe { storage.delete(0) };
 
-        assert_eq!(storage.components.len(), 0);
+        assert_eq!(storage.len(), 0);
     }
 
     #[test]
@@ -147,7 +147,7 @@ mod tests {
         let mut other = ComponentStorage::new::<CompA>(1);
         unsafe { storage.transfer(0, &mut other) };
 
-        assert_eq!(storage.components.len(), 0);
+        assert_eq!(storage.len(), 0);
         assert_eq!(unsafe { other.get::<CompA>(0) }, &42);
     }
 }

@@ -18,9 +18,9 @@ use super::{
 ///
 /// It is expected that extra bookkeeping is done to ensure that the above invariants are upheld.
 pub struct ComponentStorage {
-    pub id: ComponentID,
-    pub components: ErasedVec,
-    pub tracker: Option<ChangeTracking>,
+    id: ComponentID,
+    components: ErasedVec,
+    tracker: Option<ChangeTracking>,
 }
 
 impl ComponentStorage {
@@ -51,6 +51,10 @@ impl ComponentStorage {
             components: ErasedVec::from_erased_type(erased_type),
             tracker: None,
         }
+    }
+
+    pub fn id(&self) -> ComponentID {
+        self.id
     }
 
     pub fn len(&self) -> usize {

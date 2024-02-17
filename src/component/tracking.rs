@@ -12,7 +12,7 @@ impl TrackingInfo {
 pub struct ChangeTracking {
     /// The length of this will always match the length of the component storage's vec.
     /// It stores the world tick at which various things occurred to the component.
-    pub info: Vec<TrackingInfo>,
+    info: Vec<TrackingInfo>,
 
     /// This is updated after a system has run for a set of components.
     ///
@@ -20,13 +20,13 @@ pub struct ChangeTracking {
     /// we store the read tick for the entire set. But, we *can* know when a component has been written to,
     /// with user submitted commands, so we store the write tick for each component and compare them to
     /// detect changes.
-    pub last_read: u32,
+    pub(crate) last_read: u32,
 
     /// This is updated whenever a new component is added, or when the user issues a `FlagModifiedCommand`
     /// for a component.
     ///
     /// This is the tick of when the last modification to a component occurred.
-    pub last_write: u32,
+    pub(crate) last_write: u32,
 }
 
 impl ChangeTracking {

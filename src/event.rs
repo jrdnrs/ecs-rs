@@ -17,7 +17,7 @@ impl EventManager {
 
     pub fn clear_events(&self, resource_manager: &ResourceManager) {
         // for event_list in &self.event_lists {
-        //     let events = resources_manager.get_mut_unchecked()
+        //     let events = unsafe { resource_manager.get_mut_unchecked(*event_list) };
         // }
 
         todo!()

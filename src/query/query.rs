@@ -42,7 +42,7 @@ impl<'w, C: ComponentBundle> QueryBuilder<'w, (C,)> {
         let parameter_ids = CFilter::parameter_ids(&self.component_manager);
         self.filter_builder = CFilter::build_filter(self.filter_builder, &parameter_ids);
 
-        return self;
+        self
     }
 
     pub fn with_resources<R: ResourceBundle>(self) -> QueryBuilder<'w, (C, R)> {
@@ -85,7 +85,7 @@ impl<'w, C: ComponentBundle, R: ResourceBundle> QueryBuilder<'w, (C, R)> {
         let parameter_ids = CFilter::parameter_ids(&self.component_manager);
         self.filter_builder = CFilter::build_filter(self.filter_builder, &parameter_ids);
 
-        return self;
+        self
     }
 
     pub fn build(self) -> Query<C, R> {
@@ -106,10 +106,10 @@ impl<'w, C: ComponentBundle, R: ResourceBundle> QueryBuilder<'w, (C, R)> {
 /// the query with the world, updating the archetype IDs, to account for any new archetypes
 /// that have been created since the last sync.
 pub struct Query<C: ComponentBundle, R: ResourceBundle> {
-    pub comp_param_ids: C::Id,
-    pub res_param_ids: R::Id,
-    pub archetype_ids: Vec<ArchetypeID>,
-    pub filter: Filter,
+    pub(crate) comp_param_ids: C::Id,
+    pub(crate) res_param_ids: R::Id,
+    pub(crate) archetype_ids: Vec<ArchetypeID>,
+    pub(crate) filter: Filter,
 }
 
 impl<'w, C: ComponentBundle, R: ResourceBundle> Query<C, R> {
@@ -149,7 +149,7 @@ impl<'w, C: ComponentBundle, R: ResourceBundle> Query<C, R> {
         self.update_storage_trackers(&mut world.archetype_manager, world.tick);
     }
 
-    pub(crate) fn update_archetype_ids(&mut self, archetype_manager: &mut ArchetypeManager) {
+    fn update_archetype_ids(&mut self, archetype_manager: &mut ArchetypeManager) {
         for &arche_id in archetype_manager.new_archetypes_queue.iter() {
             let mut archetype = unsafe {
                 archetype_manager
@@ -162,11 +162,7 @@ impl<'w, C: ComponentBundle, R: ResourceBundle> Query<C, R> {
         }
     }
 
-    pub(crate) fn update_storage_trackers(
-        &mut self,
-        archetype_manager: &mut ArchetypeManager,
-        tick: u32,
-    ) {
+    fn update_storage_trackers(&mut self, archetype_manager: &mut ArchetypeManager, tick: u32) {
         // this updates the last_read of all tracked components
         for &arche_id in self.archetype_ids.iter() {
             for &comp_id in self.filter.track.iter() {

@@ -44,15 +44,15 @@ impl<R: Resource> ResourceId<R> {
 /// Currently, [UnsafeCell] is used as a workaround to easily get mutable references to several
 /// resources at once.
 pub struct ResourceManager {
-    resources: Vec<Box<UnsafeCell<dyn Resource>>>,
     ids: HashMap<TypeId, usize, nohash_hasher::BuildNoHashHasher<u64>>,
+    pub(crate) resources: Vec<Box<UnsafeCell<dyn Resource>>>,
 }
 
 impl ResourceManager {
     pub fn new() -> Self {
         Self {
-            resources: Vec::with_capacity(32),
             ids: HashMap::with_capacity_and_hasher(32, nohash_hasher::BuildNoHashHasher::default()),
+            resources: Vec::with_capacity(32),
         }
     }
 
@@ -63,7 +63,7 @@ impl ResourceManager {
 
         self.resources.push(Box::new(UnsafeCell::new(resource)));
 
-        return ResourceId::new(index);
+        ResourceId::new(index)
     }
 
     pub fn get_id<R: Resource>(&self) -> ResourceId<R> {
@@ -82,10 +82,6 @@ impl ResourceManager {
         };
 
         ResourceId::new(id)
-    }
-
-    pub fn get_storage(&self) -> &[Box<UnsafeCell<dyn Resource>>] {
-        &self.resources
     }
 
     pub fn get<R: Resource>(&self, id: ResourceId<R>) -> Option<&R> {

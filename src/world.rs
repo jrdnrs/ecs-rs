@@ -15,7 +15,7 @@ pub struct World {
     pub(crate) system_manager: SystemManager,
     pub(crate) resource_manager: ResourceManager,
     pub(crate) event_manager: EventManager,
-    pub tick: u32,
+    pub(crate) tick: u32,
 }
 
 impl World {
@@ -42,7 +42,7 @@ impl World {
                 .push_entity(entity, &mut self.entity_manager)
         };
 
-        return entity;
+        entity
     }
 
     #[inline]
@@ -66,12 +66,10 @@ impl World {
     }
 
     /// Registers the provided component in the current view, creating a corresponding component manager
-    #[inline]
     pub fn register_component<C: Component>(&mut self) {
         self.component_manager.register::<C>()
     }
 
-    #[inline]
     pub fn register_event<E: 'static>(&mut self) {
         let events = Events::<E>::new();
         let id = self.add_resource(events);

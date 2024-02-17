@@ -6,6 +6,7 @@ use crate::{
     component::{storage::ComponentStorage, Component, ComponentID, ComponentManager},
     entity::{Entity, EntityManager},
     util::get_two_mut_unchecked,
+    ComponentBundle,
 };
 
 /// Unique sequential integer
@@ -194,15 +195,15 @@ impl Archetype {
 
 pub struct ArchetypeManager {
     /// A map of bitsets to archetype IDs. The bitset represents the component IDs that are present
-    pub ids: HashMap<BitSet, ArchetypeID, ahash::RandomState>,
+    ids: HashMap<BitSet, ArchetypeID, ahash::RandomState>,
 
     /// A table of all archetypes that exist within the world.
-    pub archetype_table: Vec<Archetype>,
+    pub(crate) archetype_table: Vec<Archetype>,
 
     /// When a query is first created, archetypes relevant to that query are cached. If a new archetype
     /// is created it is added to this queue so that, after all systems have run for a given world update,
     /// they can be checked for relevance to every query and added to their cache, before being cleared.
-    pub new_archetypes_queue: Vec<ArchetypeID>,
+    pub(crate) new_archetypes_queue: Vec<ArchetypeID>,
 }
 
 impl ArchetypeManager {
@@ -236,14 +237,6 @@ impl ArchetypeManager {
 
         arche_id
     }
-
-    // pub fn archetypes(&self) -> impl Iterator<Item = &Archetype> {
-    //     self.archetype_table.values()
-    // }
-
-    // pub fn archetypes_mut(&mut self) -> impl Iterator<Item = &mut Archetype> {
-    //     self.archetype_table.values_mut()
-    // }
 
     pub fn get_root(&self) -> &Archetype {
         // SAFETY: The root archetype is always present
@@ -458,9 +451,10 @@ impl ArchetypeManager {
 
         // add the other components storages, inherited from the src archetype
         for comp_storage in src_arche.components.values() {
-            dst_arche
-                .components
-                .insert(comp_storage.id, ComponentStorage::from_other(comp_storage));
+            dst_arche.components.insert(
+                comp_storage.id(),
+                ComponentStorage::from_other(comp_storage),
+            );
         }
 
         unsafe { self.insert_graph_edge(src_arche_id, dst_arche_id, new_comp_id) };
@@ -504,13 +498,14 @@ impl ArchetypeManager {
 
         // add the components storages, inherited from the src archetype (except the one to remove)
         for comp_storage in src_arche.components.values() {
-            if comp_storage.id == old_comp_id {
+            if comp_storage.id() == old_comp_id {
                 continue;
             }
 
-            dst_arche
-                .components
-                .insert(comp_storage.id, ComponentStorage::from_other(comp_storage));
+            dst_arche.components.insert(
+                comp_storage.id(),
+                ComponentStorage::from_other(comp_storage),
+            );
         }
 
         unsafe { self.insert_graph_edge(src_arche_id, dst_arche_id, old_comp_id) };

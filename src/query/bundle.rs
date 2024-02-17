@@ -1,9 +1,8 @@
 use core::cell::UnsafeCell;
-use std::ptr::NonNull;
 
 use crate::{
     archetype::Archetype,
-    component::{storage::ComponentStorage, Component, ComponentID, ComponentManager},
+    component::{tracking::ChangeTracking, Component, ComponentID, ComponentManager},
     entity::Entity,
     resource::{Resource, ResourceId, ResourceManager},
 };
@@ -111,7 +110,7 @@ impl<T: Component> ComponentBundle for &'static mut T {
 
 impl<T: Component> ComponentBundle for Option<&'static T> {
     type Item<'a> = Option<&'a T>;
-    type Storage<'a> = Option<&'a ComponentStorage>;
+    type Storage<'a> = Option<&'a [T]>;
     type Id = ComponentID;
 
     fn parameter_ids(component_manager: &ComponentManager) -> Self::Id {
@@ -125,20 +124,20 @@ impl<T: Component> ComponentBundle for Option<&'static T> {
 
     fn prepare_storage<'a>(archetype: &'a Archetype, id: &Self::Id) -> Self::Storage<'a> {
         if archetype.has_component(*id) {
-            unsafe { Some(archetype.get_storage(*id)) }
+            unsafe { Some(archetype.get_storage(*id).as_slice()) }
         } else {
             None
         }
     }
 
     unsafe fn fetch_item<'a>(storage: Self::Storage<'a>, index: usize) -> Self::Item<'a> {
-        storage.map(|storage| storage.get_as_ptr(index).as_ref::<T>())
+        storage.map(|storage| storage.get_unchecked(index))
     }
 }
 
 impl<T: Component> ComponentBundle for Option<&'static mut T> {
     type Item<'a> = Option<&'a mut T>;
-    type Storage<'a> = Option<&'a ComponentStorage>;
+    type Storage<'a> = Option<&'a [UnsafeCell<T>]>;
     type Id = ComponentID;
 
     fn parameter_ids(component_manager: &ComponentManager) -> Self::Id {
@@ -152,20 +151,20 @@ impl<T: Component> ComponentBundle for Option<&'static mut T> {
 
     fn prepare_storage<'a>(archetype: &'a Archetype, id: &Self::Id) -> Self::Storage<'a> {
         if archetype.has_component(*id) {
-            unsafe { Some(archetype.get_storage(*id)) }
+            unsafe { Some(archetype.get_storage(*id).as_slice_unsafe_cell()) }
         } else {
             None
         }
     }
 
     unsafe fn fetch_item<'a>(storage: Self::Storage<'a>, index: usize) -> Self::Item<'a> {
-        storage.map(|storage| storage.get_as_ptr(index).as_mut::<T>())
+        storage.map(|storage| &mut *storage.get_unchecked(index).get())
     }
 }
 
 impl<T: Component> ComponentBundle for Tracked<&'static T> {
     type Item<'a> = Tracked<&'a T>;
-    type Storage<'a> = &'a ComponentStorage;
+    type Storage<'a> = (&'a [T], &'a ChangeTracking);
     type Id = ComponentID;
 
     fn parameter_ids(component_manager: &ComponentManager) -> Self::Id {
@@ -179,13 +178,16 @@ impl<T: Component> ComponentBundle for Tracked<&'static T> {
     }
 
     fn prepare_storage<'a>(archetype: &'a Archetype, id: &Self::Id) -> Self::Storage<'a> {
-        unsafe { archetype.get_storage(*id) }
+        let storage = unsafe { archetype.get_storage(*id) };
+        let data = unsafe { storage.as_slice() };
+        let tracker = unsafe { storage.get_tracker() };
+        (data, tracker)
     }
 
     unsafe fn fetch_item<'a>(storage: Self::Storage<'a>, index: usize) -> Self::Item<'a> {
-        let tracker = storage.tracker.as_ref().unwrap_unchecked();
+        let tracker = storage.1;
         let item_info = tracker.get(index);
-        let item = storage.get_as_ptr(index).as_ref::<T>();
+        let item = storage.0.get_unchecked(index);
 
         // If we are reading this component a single tick after it was modified, the `modified` and `read` ticks
         // will be equal. This does not mean it was modified in this current tick - `read` is updated **after**
@@ -200,7 +202,7 @@ impl<T: Component> ComponentBundle for Tracked<&'static T> {
 
 impl<T: Component> ComponentBundle for Tracked<&'static mut T> {
     type Item<'a> = Tracked<&'a mut T>;
-    type Storage<'a> = &'a ComponentStorage;
+    type Storage<'a> = (&'a [UnsafeCell<T>], &'a ChangeTracking);
     type Id = ComponentID;
 
     fn parameter_ids(component_manager: &ComponentManager) -> Self::Id {
@@ -214,13 +216,16 @@ impl<T: Component> ComponentBundle for Tracked<&'static mut T> {
     }
 
     fn prepare_storage<'a>(archetype: &'a Archetype, id: &Self::Id) -> Self::Storage<'a> {
-        unsafe { archetype.get_storage(*id) }
+        let storage = unsafe { archetype.get_storage(*id) };
+        let data = unsafe { storage.as_slice_unsafe_cell() };
+        let tracker = unsafe { storage.get_tracker() };
+        (data, tracker)
     }
 
     unsafe fn fetch_item<'a>(storage: Self::Storage<'a>, index: usize) -> Self::Item<'a> {
-        let tracker = storage.tracker.as_ref().unwrap_unchecked();
+        let tracker = storage.1;
         let item_info = tracker.get(index);
-        let item = storage.get_as_ptr(index).as_mut::<T>();
+        let item = &mut *storage.0.get_unchecked(index).get();
 
         // If we are reading this component a single tick after it was modified, the `modified` and `read` ticks
         // will be equal. This does not mean it was modified in this current tick - `read` is updated **after**

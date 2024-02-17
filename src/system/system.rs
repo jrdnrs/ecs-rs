@@ -62,9 +62,9 @@ pub type SystemFn<C, R> =
 ///
 /// The query is stored in the system, so that it can be updated when the world is updated.
 pub struct System<C: ComponentBundle, R: ResourceBundle> {
-    pub query: Query<C, R>,
-    pub func: SystemFn<C, R>,
-    pub last_update: u32,
+    query: Query<C, R>,
+    func: SystemFn<C, R>,
+    last_update: u32,
 }
 
 impl<C: ComponentBundle, R: ResourceBundle> System<C, R> {
@@ -84,7 +84,7 @@ impl<C: ComponentBundle, R: ResourceBundle> System<C, R> {
         let iter = self.query.iter(world);
         let resources = unsafe {
             R::fetch_item(
-                &world.resource_manager.get_storage(),
+                &world.resource_manager.resources,
                 self.query.res_param_ids,
             )
         };

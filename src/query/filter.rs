@@ -88,7 +88,7 @@ impl Filter {
             }
         }
 
-        return matches;
+        matches
     }
 
     pub fn matching_archetypes(
@@ -101,7 +101,8 @@ impl Filter {
                 matching.push(archetype.id);
             }
         }
-        return matching;
+
+        matching
     }
 }
 
