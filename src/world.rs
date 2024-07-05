@@ -192,6 +192,12 @@ impl World {
         self.resource_manager.add(resource)
     }
 
+    /// # Panics
+    ///  - If the resource type has not been registered
+    pub fn get_resource_id<R: Resource>(&self) -> ResourceId<R> {
+        self.resource_manager.get_id()
+    }
+
     /// Although each Resource is guaranteed to be unique, the generic type parameter is only
     /// used to downcast the resource to the correct type. Instead the resource ID is used to
     /// locate the Resource for faster lookup.
