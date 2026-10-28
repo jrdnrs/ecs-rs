@@ -56,6 +56,10 @@ impl ResourceManager {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.resources.len()
+    }
+
     pub fn add<R: Resource>(&mut self, resource: R) -> ResourceId<R> {
         let index = self.resources.len();
         let type_id = TypeId::of::<R>();
@@ -131,5 +135,12 @@ impl ResourceManager {
                 .as_mut()
                 .unwrap_unchecked()
         }
+    }
+
+    /// # Safety
+    /// - The index must be within the bounds of the underlying vec.
+    /// - Don't drop the resource with this pointer.
+    pub(crate) unsafe fn get_ptr(&mut self, index: usize) -> *mut u8 {
+        self.resources.get_unchecked_mut(index).get() as *mut _ as *mut u8
     }
 }

@@ -2,7 +2,7 @@ use crate::{
     archetype::ArchetypeManager,
     component::{Component, ComponentManager},
     entity::{Entity, EntityManager},
-    event::{EventManager, Events},
+    event::{EventManager, EventMetadata, Events},
     query::{bundle::ComponentBundle, QueryBuilder},
     resource::{Resource, ResourceId, ResourceManager},
     system::{schedule::Schedule, SystemManager},
@@ -71,9 +71,7 @@ impl World {
     }
 
     pub fn register_event<E: 'static>(&mut self) {
-        let events = Events::<E>::new();
-        let id = self.add_resource(events);
-        self.event_manager.register_event(id);
+        self.event_manager.register_event::<E>(&mut self.resource_manager);
     }
 
     /// Returns true if the specified entity has the specified component. Also will return false if
